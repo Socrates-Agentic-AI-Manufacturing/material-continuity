@@ -1720,13 +1720,13 @@ Recommended sequence:
 
 ## Phase 6 — Recovery Supervisor
 
-- [ ] Define supervisor role.
-- [ ] Expose controlled tools.
-- [ ] Implement recovery branching.
-- [ ] Maintain case state.
-- [ ] Call Evidence Specialist only when needed.
-- [ ] Call deterministic tools for all calculations.
-- [ ] Produce recovery summary.
+- [x] Define supervisor role.
+- [x] Expose controlled tools.
+- [x] Implement recovery branching.
+- [x] Maintain case state.
+- [x] Call Evidence Specialist only when needed.
+- [x] Call deterministic tools for all calculations.
+- [x] Produce recovery summary.
 
 ## Phase 7 — Approval Gate
 
@@ -1788,11 +1788,11 @@ Update this section after every meaningful work session.
 ## Overall status
 
 ```text
-Project phase: LOCAL AGENT WORKFLOW
+Project phase: LOCAL END-TO-END ORCHESTRATION
 Proposal: COMPLETE
 Hackathon qualification: FINAL STAGE
 GitHub strategy: DECIDED — one organization, one monorepo
-Implementation: LOCAL DETERMINISTIC WORKFLOW + MOCK-BACKED EVIDENCE SPECIALIST + APPROVAL/ACTION PATH COMPLETE / Recovery Supervisor next; AWS retrieval blocked
+Implementation: LOCAL RECOVERY SUPERVISOR + EVIDENCE SPECIALIST + APPROVAL/ACTION PATH COMPLETE / end-to-end demo runner next; AWS retrieval blocked
 ```
 
 ## Progress table
@@ -1818,7 +1818,7 @@ Implementation: LOCAL DETERMINISTIC WORKFLOW + MOCK-BACKED EVIDENCE SPECIALIST +
 | Bedrock Knowledge Base | TODO | P1 |
 | Evidence pipeline contract | DONE | Typed extraction boundary preserves provenance, excludes unsupported claims, and feeds the deterministic comparison engine; 8 dedicated tests pass |
 | Evidence Specialist | LOCAL DONE | Guardrailed role prompt, typed output, replaceable retrieval interface, fixture-backed adapter, requirement mapping, gap/procedure detection, and Candidate A/B branches; live Bedrock adapter pending |
-| Recovery Supervisor | TODO | P1 |
+| Recovery Supervisor | LOCAL DONE | Guardrailed role, controlled fixture-backed tool interface, approved-path-first branching, conditional Evidence Specialist calls, case creation, tool trace, and structured summary; live AgentCore runtime pending |
 | UI | TODO | P1 |
 | EventBridge | TODO | P2 |
 | Observability | TODO | P2 |
@@ -1829,6 +1829,31 @@ Implementation: LOCAL DETERMINISTIC WORKFLOW + MOCK-BACKED EVIDENCE SPECIALIST +
 # 27. Session Progress Log
 
 Append new entries; do not overwrite old ones.
+
+## 2026-09-29 — Local Recovery Supervisor
+
+### Completed
+
+- Added the Recovery Supervisor package with an explicit orchestration-only role prompt and human-release guardrails.
+- Added typed workflow requests, candidate assessments, tool traces, scenario summaries, and recovery summaries.
+- Added a controlled tool protocol plus a fixture-backed implementation that invokes the existing deterministic exposure, recovery-option, qualification, simulation, case-state, and source-version modules.
+- Enforced ordered branching: calculate exposure, exhaust approved paths, and call the Evidence Specialist only when approved recovery is insufficient.
+- Added a no-exposure early exit that avoids unnecessary recovery and evidence calls.
+- Added an approved-recovery branch that skips the Evidence Specialist entirely.
+- Investigated all surfaced unqualified candidates in the canonical branch, rejected Candidate B for its hard mismatch, and preserved Candidate A/C as conditional.
+- Built Case Version 1 from the orchestrated outputs while preserving production release as unauthorized.
+- Produced a structured summary for 700 exposed units across 7 orders and three deterministic recovery scenarios.
+- Added five unit tests and one canonical integration test.
+- Verified all 98 repository tests pass.
+
+### Next recommended action
+
+1. add a local end-to-end demo runner that connects supervisor output to human approval and the mock QMS action;
+2. demonstrate qualification-task creation while production release remains blocked;
+3. revise Candidate A evidence from revision 2 to 3 and show the previous approval becomes stale;
+4. demonstrate duplicate action blocking in the same canonical flow.
+
+---
 
 ## 2026-09-29 — Mock-backed Evidence Specialist
 
@@ -2973,15 +2998,15 @@ That is **Material Continuity**.
 Current recommended next step:
 
 ```text
-Configure read-only hackathon AWS access, validate Region and service availability,
-then upload the verified twelve-document corpus and test revision/page provenance.
+Build the local end-to-end canonical demo runner across Recovery Supervisor,
+human approval, mock QMS action, evidence revision, and stale authorization.
 ```
 
-While AWS access remains blocked, preserve the completed local P0 path without changing the architecture:
+When AWS access becomes available, replace only the retrieval/runtime adapters:
 
 ```text
 evidence pipeline retrieval when AWS access is available
-→ Evidence Specialist
-→ Recovery Supervisor
+→ Bedrock-backed Evidence Specialist
+→ AgentCore-hosted Recovery Supervisor
 → UI
 ```
