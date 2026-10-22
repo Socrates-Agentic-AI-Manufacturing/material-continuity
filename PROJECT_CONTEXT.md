@@ -1394,6 +1394,36 @@ If AgentCore access is unavailable, preserve the logical architecture and use a 
 
 Keep the frontend compact.
 
+## 2026-10-13 planning update
+
+The user has chosen to proceed directly to the web UI rather than prioritizing a
+separate standalone end-to-end CLI demo runner. Demonstrate the canonical
+acceptance flow through the web application while reusing the existing core.
+
+The latest proposed web structure has six functional areas:
+
+1. Overview / Cases;
+2. Recovery Case details and recovery discovery;
+3. Evidence Review;
+4. Recovery Scenarios / qualification timeline;
+5. Approval & Actions;
+6. Documents & Data, including upload, revisions, extraction state, and freshness.
+
+Recommended sidebar: Overview, Recovery Cases, Documents & Data. Place Evidence
+Review, Recovery Scenarios, and Approval & Actions inside the selected case as
+tabs, with audit history and agent/tool activity available in the case.
+
+The functional local web slice now implements this navigation using plain
+HTML/CSS/JavaScript, a Python standard-library HTTP adapter, and SQLite persistence
+(ADR-007). The user explicitly prioritizes functionality; visual polish is
+deferred. Documents & Data currently supports corpus browsing, not upload or
+runtime extraction. The local investigation remains a Python workflow with mock
+retrieval. As of 2026-10-22 an explicit OpenAI advisory review is live-connected
+in Agent Workflow; this does not perform document extraction or replace the
+local Evidence Specialist. The viewer/replay is not an executable flow editor.
+
+The five review views below remain the original detailed UI guidance.
+
 Recommended five primary views:
 
 ## View 1 — Disruption / Exposure
@@ -1651,7 +1681,7 @@ Recommended sequence:
 - [ ] Confirm AWS account.
 - [ ] Confirm AWS Region.
 - [ ] Verify service availability.
-- [ ] Choose backend/frontend stack.
+- [x] Choose local web MVP stack (ADR-007); public deployment stack remains open.
 - [x] Define local run command.
 
 ## Phase 1 — Canonical Scenario + Synthetic Data
@@ -1748,13 +1778,19 @@ Recommended sequence:
 
 ## Phase 9 — UI
 
-- [ ] Disruption view.
-- [ ] Recovery options view.
-- [ ] Evidence matrix.
-- [ ] Qualification/recovery timeline.
-- [ ] Approval/action view.
-- [ ] Agent/tool timeline.
-- [ ] Stale approval visualization.
+- [x] Disruption view.
+- [x] Recovery options view.
+- [x] Evidence matrix.
+- [x] Qualification/recovery timeline.
+- [x] Approval/action view.
+- [x] Agent/tool timeline.
+- [x] Stale approval visualization.
+- [x] Persistent local case/approval/task storage and server-side demo sessions.
+- [x] Read-only document corpus with PDF page links.
+- [x] Explicit OpenAI advisory review and separately persisted review history.
+- [x] Interactive read-only Agent Workflow canvas/list, node inspector and replay.
+- [ ] Document upload and actual extraction/revision workflow.
+- [ ] Visual polish and broader responsive/a11y verification.
 
 ## Phase 10 — Event / Observability
 
@@ -1788,11 +1824,11 @@ Update this section after every meaningful work session.
 ## Overall status
 
 ```text
-Project phase: LOCAL END-TO-END ORCHESTRATION
+Project phase: FUNCTIONAL LOCAL WEB MVP
 Proposal: COMPLETE
 Hackathon qualification: FINAL STAGE
 GitHub strategy: DECIDED — one organization, one monorepo
-Implementation: LOCAL RECOVERY SUPERVISOR + EVIDENCE SPECIALIST + APPROVAL/ACTION PATH COMPLETE / end-to-end demo runner next; AWS retrieval blocked
+Implementation: BACKEND-CONNECTED REVIEW UI + SQLITE + DEMO AUTH + INTERACTIVE WORKFLOW VIEWER + EXPLICIT OPENAI REVIEW COMPLETE LOCALLY; document ingestion/extraction and cloud remain pending
 ```
 
 ## Progress table
@@ -1819,7 +1855,13 @@ Implementation: LOCAL RECOVERY SUPERVISOR + EVIDENCE SPECIALIST + APPROVAL/ACTIO
 | Evidence pipeline contract | DONE | Typed extraction boundary preserves provenance, excludes unsupported claims, and feeds the deterministic comparison engine; 8 dedicated tests pass |
 | Evidence Specialist | LOCAL DONE | Guardrailed role prompt, typed output, replaceable retrieval interface, fixture-backed adapter, requirement mapping, gap/procedure detection, and Candidate A/B branches; live Bedrock adapter pending |
 | Recovery Supervisor | LOCAL DONE | Guardrailed role, controlled fixture-backed tool interface, approved-path-first branching, conditional Evidence Specialist calls, case creation, tool trace, and structured summary; live AgentCore runtime pending |
-| UI | TODO | P1 |
+| OpenAI inference adapter | WEB LIVE VERIFIED | Existing key and gpt-5.4-mini; explicit cost-acknowledged review via web verified (8 calls); local provider now openai; no automatic calls; full reliability/evaluation pending |
+| UI | LOCAL FUNCTIONAL | Overview, case detail tabs including Agent Workflow, evidence/citations, scenarios/task schedule, approval/receipt/blocked reasons, history and trace, read-only Documents & Data |
+| Interactive agent workflow | LOCAL DONE | User-confirmed n8n-like viewer, not editor: node inspector, dotted canvas, zoom/pan, keyboard/list alternative, replay; grouped local map separate from real OpenAI tool order; desktop/mobile browser verified |
+| Advisory review history | LOCAL DONE | Separate SQLite ai_reviews table restores latest completed review without paid rerun; old hash/source state marks archive; decision/approval/task state unchanged |
+| Web API and persistence | LOCAL DONE | Standard-library HTTP adapter; SQLite aggregate/history, scoped approvals and mock tasks; serial read/check/write transactions and unique target keys prevent concurrent duplicate writes |
+| Authenticated web identity | LOCAL DEMO DONE | Password-verified demo users, server-owned roles, expiring opaque HttpOnly cookie sessions, CSRF/origin checks; enterprise SSO/public deployment auth not implemented |
+| Runtime PDF ingestion | TODO | Corpus is browsable; upload, new document versions, and actual runtime extraction remain pending |
 | EventBridge | TODO | P2 |
 | Observability | TODO | P2 |
 | SAP live integration | OUT OF MVP | Mock adapter is sufficient |
@@ -1829,6 +1871,125 @@ Implementation: LOCAL RECOVERY SUPERVISOR + EVIDENCE SPECIALIST + APPROVAL/ACTIO
 # 27. Session Progress Log
 
 Append new entries; do not overwrite old ones.
+
+## 2026-10-22 — Interactive workflow viewer and explicit OpenAI web review
+
+### Completed
+
+- User approved OpenAI web activation and requested n8n-like interactive agent-workflow explanation. Confirmed scope: viewer, node details and replay, not an editor that changes executable workflows or approval rules.
+- Added the Agent Workflow case tab with an existing-system light canvas, connected nodes, source selector, node inspector, readable backend outcomes and expandable context/output. No graph/UI dependency was added.
+- Separated a grouped local case-stage map (including fixture Evidence Specialist and human/mock action history) from actual recorded OpenAI tool order. Both retain explicit synthetic data / no runtime PDF-extraction limits.
+- Added drag/keyboard pan, zoom/fit, previous/next and timed replay, plus a keyboard-accessible list that is the default on small screens. Replay does not call tools or consume credits.
+- Added an explicit per-request cost/data-transfer acknowledgement, pending/error/configuration/freshness states and advisory disclaimer. Pending requests show no fabricated per-tool progress; failed runs are not yet persisted as node traces.
+- Enabled provider=openai in the existing ignored local configuration without displaying or rewriting the existing API key. New-install examples remain opt-in/fixtures by default.
+- Persisted completed review payloads in a separate SQLite ai_reviews table, not decision snapshots or approvals. Case view restores the latest review and marks old source/hash state as archived. Archived graphs use their original facts.
+- Browser-initiated live review succeeded with gpt-5.4-mini: 8 calls, reported 30,372 input / 491 output tokens. Refresh restored the result without issuing a second paid review. Existing case version/hash and mock approval/task were preserved.
+- Verified browser node selection, inspector, list/canvas toggle, zoom, keyboard pan, replay and persisted result. Captured 1126px desktop and 390px mobile; document scrollWidth matched viewport width at both sizes; restored normal viewport afterwards.
+- All 141 Python tests and 10 dependency-free Node workflow tests pass; JS syntax checks pass. The mechanical design detector returned [] in degraded regex mode only (parsers absent); no full automated accessibility/contrast certification is claimed.
+- Fixed the independent review's mobile replay finding: advancing/replaying keeps the selected node visible inside its own list without scrolling the whole page. Added three regression tests and verified the final node visible with unchanged page scroll position.
+- Impeccable guided the scoped canvas addition and independent finish review. Final verdict: ship for the two scored fixes (mobile replay visibility and accurate product/design documentation), both resolved. This is not a full accessibility certification. User approved merging the workflow guidance into DESIGN.md without replacing the incumbent design; a documenter preserved those rules and added the actual component sidecar.
+
+### Limits and next action
+
+- Viewer is read-only; it cannot add/reorder executable tools, authorize tasks or change backend comparisons. This does not complete a live LLM Evidence Specialist, ingestion/retrieval, public hosting or AWS proposal infrastructure.
+- Next: controlled PDF upload, immutable revisions, real page-aware extraction and ingestion-driven evidence/case updates. Continue to prioritize functionality before broader visual polish.
+
+---
+
+## 2026-10-22 — First live OpenAI review verified
+
+### Completed
+
+- User confirmed the existing API key/model had been entered locally and authorized the planned controlled connection test. Read configuration metadata only; never displayed or rewrote the key.
+- Verified the configured model is `gpt-5.4-mini`. The persisted provider remains `fixtures`; used an in-memory `openai` override for this single manual smoke test only.
+- The initial sandbox attempt failed at the network transport layer before an API response. Following the OpenAI troubleshooting workflow, reran the actual bounded review with approved network access; it succeeded.
+- Reviewed persisted synthetic CASE-001 Version 1 with the real Responses API: exposure, approved-path discovery, three candidate evidence lookups, qualification dependencies, recovery scenarios, then structured completion (8 calls).
+- Reported usage: 30,109 input tokens and 579 output tokens across the review. This was a real API call sequence, not an offline test; no monetary cost is inferred here.
+- Rechecked the case hash and source fingerprints after inference. The test did not mutate decision state, approvals, action receipts or production-release authority. No model output was stored as technical evidence.
+- Updated current tracker and README to distinguish this successful smoke test from the offline suite and from a full live-agent/PDF/cloud implementation.
+
+### Limits and next action
+
+- One successful manual review verifies this key/model/network path at test time, not ongoing quota, availability or production reliability. The configuration-status command still does not make a network call or persist connection verification.
+- The normal application remains in fixture mode and its existing investigation stays deterministic/fixture-backed. No automatic paid calls or permanent provider changes were enabled.
+- Next: add the explicit case-review UI entry with loading/error/advisory states, enable OpenAI deliberately for web use, then continue controlled PDF ingestion and page-aware extraction.
+
+---
+
+## 2026-10-22 — Optional OpenAI read-only review integration
+
+### Completed
+
+- Re-read this handoff completely and compared the submitted three-page proposal with current code/tracker before implementation.
+- User explicitly requested preparing OpenAI integration using their existing API key; no new key was created. User confirmed the key is not yet stored locally. No real credential was read, displayed or written.
+- Added a dependency-free, backend-only Responses API transport with explicit opt-in provider/model configuration, fixed HTTPS endpoint, redirect blocking, `store: false`, bounded HTTP/context/output, sanitized errors and no automatic retries.
+- Added allowlisted optional `.env.local` loading with process-environment priority, expanded Git ignores for local env variants, and prepared a blank ignored local configuration for the user to fill. No default model or automatic paid startup call is assumed.
+- Added bounded model-selected read-only review tools to the existing Recovery Supervisor package. They read an immutable backend-calculated case snapshot; prerequisites enforce exposure and approved paths before candidate investigation. Hard-rejected candidates cannot obtain qualification plans.
+- Final model prose is advisory and separate from unchanged deterministic facts. The adapter exposes no authorization, procurement, production-release or task-write tool. It does not replace the fixture-backed investigation or perform PDF extraction.
+- Added authenticated/CSRF-protected `POST /api/cases/{id}/ai-review`, redacted authenticated `GET /api/llm/status`, and a no-network `python -m services.llm` configuration check.
+- Do not hold a SQLite write transaction during inference. Check case version/hash and source freshness before and after the call; stale results are discarded. AI output is not persisted into case versions, approvals or action receipts.
+- Added 23 offline transport, configuration, tool-order, malformed-output, role/CSRF, freshness, concurrency and no-mutation tests. All 139 repository tests pass. The initial sandbox run hit Windows temporary-directory permissions; the full rerun with local temp/socket access passed. `git diff --check`, Git-ignore verification for `.env.local`, and the no-network configuration check pass.
+
+### Limits and next action
+
+- Existing key and an API-accessible model still need local configuration. No actual OpenAI request, quota/model-access check, live reliability claim or credit usage has occurred.
+- This is backend/API-first preparation, not a new chatbot, a completed LLM Evidence Specialist, automatic PDF parsing, or a replacement for the proposal's AWS services. The browser does not yet expose an AI review button.
+- Next: configure the existing key/model locally, verify one controlled request, add the case-review UI entry, then implement controlled PDF ingestion/page-aware extraction and feed it through the existing evidence contract.
+- AWS hosting/retrieval/event infrastructure and full proposal acceptance/evaluation remain open. See ADR-008 for the limited provider decision.
+
+---
+
+## 2026-10-13 — Functional local web review workflow
+
+### Completed
+
+- Read the feedback supplied from the earlier ChatGPT conversation and followed the user's functional-first direction, deferring visual refinement.
+- Added a plain browser UI and a Python standard-library HTTP adapter around existing domain/agent functions without new third-party runtime dependencies.
+- Implemented Overview/case listing and case detail tabs for summary/discovery, evidence, recovery scenarios/qualification schedule, and approvals/actions.
+- Added allowlisted PDF serving with page-specific citations and read-only document metadata/checksum browsing.
+- Added SQLite persistence for complete immutable case history, approvals, scoped qualification targets, tasks, receipts, users, and sessions using a lossless allowlisted JSON codec.
+- Implemented password-verified local demo login with server-authoritative identity/roles, expiring HttpOnly/SameSite cookies, CSRF tokens, origin/host checks, and logout.
+- Enforced optimistic reviewed version/hash checks on mutations; browser role, identity, arbitrary task targets, and idempotency keys are not accepted as authorization.
+- Wrapped authorization/action creation in SQLite read/check/write transactions, with a unique per-case-version/candidate/requirement task key so parallel requests and separate approvals cannot create duplicate tasks.
+- Added input fingerprints for the local synthetic dataset/PDF corpus, detecting source-byte changes even when revision strings are unchanged.
+- Added re-investigation preserving approvals/actions/history, no-op version behavior, stale approval blocking, and conservative source-change blocking before action.
+- Tied substitute scenario readiness to the current qualification graph and blocked substitute coverage if a refreshed candidate develops a hard mismatch.
+- Verified the browser flow: login, case/evidence/scenarios, qualification approval, mock task/receipt, page reload persistence, documents, and planner role restrictions.
+- Added 18 HTTP/persistence acceptance tests; all 116 repository tests pass. Browser JavaScript syntax check passed.
+- Impeccable's mechanical detector returned no regex findings but ran in degraded mode because parser modules are absent; no comprehensive visual/a11y pass is claimed.
+- Updated README with run/login instructions, API contracts, persistence behavior, and explicit synthetic/local-only limitations.
+
+### Limits and next action
+
+- This server binds localhost only. Shared demo credentials are for the synthetic local workflow; public hosting, TLS/SSO and enterprise identities remain pending.
+- No new live LLM, cloud adapter, scraper, scheduler, document upload, or actual runtime PDF extraction is implemented in this slice.
+- Next: add controlled document upload, immutable document revisions, actual page-aware extraction, and case re-investigation driven by ingested evidence.
+- Preserve existing core decisions and resolve live model/provider access later; improve visual design after the functional flow is complete.
+
+---
+
+## 2026-10-13 — Web MVP planning and ChatGPT handoff
+
+### Completed
+
+- Verified Recovery Supervisor commit `d090dfb` is on `main` and synced with the organization repository before this documentation update.
+- Re-ran the existing test suite; all 98 tests pass.
+- Recorded the user's decision to skip a separate standalone CLI demo runner and proceed directly to the UI with the canonical flow demonstrated through the web application.
+- Documented the proposed six functional areas and compact three-menu navigation.
+- Documented the proposed data strategy: controlled document ingestion, runtime retrieval, and current-source checks for volatile operational data; scraper targets and sync cadence remain undecided.
+- Clarified implementation limits: local agent workflows use prepared fixtures, no live LLM invocation or actual runtime PDF extraction exists, and HTTP API/persistence/real user authentication remain pending.
+- Recorded that SAP access verification was deferred by the user; no credentials were fetched and no cloud-provider architecture change was made.
+- Created `CHATGPT_HANDOFF_2026-10-13.md` as a self-contained progress and planning handoff for the earlier ChatGPT conversation.
+
+### Next recommended action
+
+1. settle the minimum web/API/persistence contracts and implementation stack with a concrete technical rationale;
+2. build a backend-connected case review UI using existing engines and local adapters;
+3. connect approval/action and source-revision changes to persistent case state with authenticated reviewer identity;
+4. add actual document ingestion/extraction and freshness visibility;
+5. verify and connect cloud inference/retrieval when account access and provider decisions are available.
+
+---
 
 ## 2026-09-29 — Local Recovery Supervisor
 
@@ -2260,6 +2421,48 @@ Use this section for small ADRs.
 
 ---
 
+## ADR-007 — Dependency-free local web adapter and SQLite persistence
+
+**Status:** Accepted for the local synthetic web MVP, 2026-10-13
+
+**Previous state:** Domain core and local agent workflows were available only as libraries/CLI/tests; HTTP, durable state, and web identity were open decisions.
+
+**Decision:** Serve the initial functional browser UI with plain HTML/CSS/JavaScript and a localhost-only Python standard-library HTTP adapter. Persist immutable domain aggregates, approvals/action history, scoped task records, and demo sessions in SQLite. Store typed aggregates with an allowlisted lossless JSON codec rather than pickle. Derive actor roles from password-verified server sessions.
+
+**Reason:** The user prioritizes working functionality and asks to avoid dependencies without a concrete technical reason. The existing Python core can be reused directly; stdlib SQLite provides durable local state and atomic read/check/write transactions without new packages or infrastructure. UI refinement and cloud integrations need not block the first review/action slice.
+
+**Consequences:** The local app has functional review/approval/task creation and restart persistence. Per-target unique task keys plus serialized transactions prevent concurrent duplicate mock writes. The HTTP adapter is not a public production server; deployment will require reevaluating hosting, durable storage, TLS, identity, and operational requirements. AWS proposal commitments and core architecture remain unchanged. PDF upload/runtime extraction and live inference are still separate future integrations.
+
+---
+
+## ADR-008 — Optional OpenAI review adapter while AWS access is unavailable
+
+**Status:** Accepted for interim local integration preparation, 2026-10-22; one manual live review verified on the same date.
+
+**Previous state:** Local agent workflows used only fixture-backed adapters. AWS Bedrock/AgentCore remained the proposal target but access was not configured.
+
+**Decision:** At the user's explicit request, add an optional OpenAI Responses adapter using the existing Python standard library. Require explicit provider opt-in, an existing user-owned API key, and an explicitly configured API model. First expose a bounded read-only review of existing immutable case snapshots through the Recovery Supervisor package and authenticated web API. Preserve the deterministic supervisor and all human approval/action boundaries. No new agent, SDK/framework dependency, arbitrary endpoint override, or enterprise write tool is introduced.
+
+**Reason:** The user has OpenAI access and wants to prepare that integration before AWS availability is resolved. A narrow replaceable adapter enables actual model-selected read-only tool calls without redesigning the product or coupling numerical/authorization logic to an LLM.
+
+**Consequences:** This is a limited local inference-provider deviation, not delivery of the AWS architecture promised in the proposal. Existing enterprise data and extracted evidence remain synthetic/prepared. AI prose is advisory, not verified evidence, and does not alter case hashes, approvals, receipts or release status. Calls are explicit, bounded, can incur charges, and send synthetic case facts to OpenAI; no silent fallback or startup call occurs. Manual and browser-initiated reviews succeeded and the user explicitly approved local web activation. New-install examples still default to fixtures. Document extraction, full live-agent evaluation and AWS deployment remain pending.
+
+---
+
+## ADR-009 — Read-only workflow viewer and separate advisory execution history
+
+**Status:** Accepted for the local web MVP, 2026-10-22.
+
+**Previous state:** Case activity was a table, and OpenAI review output was returned through the API without durable advisory history.
+
+**Decision:** Render an n8n-like inspectable node canvas using native DOM/SVG and existing CSS/JavaScript. Maintain separate grouped local-case and recorded OpenAI-trace views. Keep model advisories and their original snapshot/usage in an independent SQLite table; the case view annotates freshness against current hash/source state. Preserve core case versions and approvals unchanged.
+
+**Reason:** The user explicitly wants an interactive explanation/replay, not an editable agent workflow. Persisted advisories make actual tool order inspectable after refresh without another paid request. No third-party graph library or orchestration redesign is required.
+
+**Consequences:** Zoom/pan, node details, list mode and replay are presentation controls only. They never execute tools, reorder the agent, authorize writes or constitute live-streamed progress. Archived reviews retain their original facts and are labelled outdated. Model output is not promoted to engineering evidence. Failed-run per-node traces and document ingestion remain future work.
+
+---
+
 # 29. Testing Strategy
 
 ## 29.1 Unit Tests
@@ -2666,9 +2869,9 @@ Adapt based on final stack and AWS credentials model.
 
 Track unresolved architecture decisions here.
 
-- [ ] Which exact frontend framework?
-- [ ] Which exact backend framework?
-- [ ] Which persistence layer for recovery cases?
+- [x] Local frontend uses plain HTML/CSS/JavaScript (ADR-007); future framework adoption requires a concrete reason.
+- [x] Local HTTP backend uses the Python standard library (ADR-007); public deployment server remains undecided.
+- [x] Local recovery-case persistence uses SQLite and lossless JSON aggregates (ADR-007); deployment storage remains undecided.
 - [ ] Is DynamoDB enough for MVP or is relational storage preferable?
 - [ ] What AWS Region is available?
 - [ ] Which Bedrock model is permitted?
@@ -2998,15 +3201,26 @@ That is **Material Continuity**.
 Current recommended next step:
 
 ```text
-Build the local end-to-end canonical demo runner across Recovery Supervisor,
-human approval, mock QMS action, evidence revision, and stale authorization.
+OpenAI web review and the interactive read-only workflow viewer are implemented
+and live-verified. Next implement controlled PDF upload, immutable revisions,
+page-aware extraction, and ingestion-driven case re-investigation. Keep model
+outputs separate from evidence and preserve deterministic/human gates.
 ```
 
-When AWS access becomes available, replace only the retrieval/runtime adapters:
+Proposed implementation priorities:
 
 ```text
-evidence pipeline retrieval when AWS access is available
-→ Bedrock-backed Evidence Specialist
-→ AgentCore-hosted Recovery Supervisor
-→ UI
+document upload/revision and actual extraction
+→ ingestion-driven evidence review and source-version updates
+→ full live evidence/retrieval/runtime adapters when access is verified
+→ deployment-appropriate server/storage/identity
+→ UI visual polish and full web acceptance verification
 ```
+
+AWS remains the proposal's target architecture. The user has approved an interim
+optional OpenAI inference adapter (ADR-008), not a wholesale cloud migration.
+The supplied SAP manual describes additional organizer facilities, but SAP
+account access was deferred. The local frontend/backend/database choices
+are recorded in ADR-007; public deployment choices and sync cadence remain open.
+`CHATGPT_HANDOFF_2026-10-13.md` is the planning snapshot from before this functional
+web implementation. Use this tracker and latest session log for current progress.

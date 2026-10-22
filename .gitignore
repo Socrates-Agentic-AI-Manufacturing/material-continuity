@@ -6,6 +6,10 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.*
+!.env.example
 coverage.xml
 .coverage
 htmlcov/
+data/local/
+.impeccable/review/

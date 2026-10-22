@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T17:15:20+07:00",
+  "title": "Functional review workspace",
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Explicit review or investigation action; disabled when backend prerequisites are missing.",
+      "html": "<button type=\"button\" class=\"ds-primary\">Review dengan AI</button>",
+      "css": ".ds-primary { font: inherit; min-height:44px; border:1px solid var(--accent,#075d78); background:var(--accent,#075d78); color:white; padding:8px 16px; border-radius:4px; cursor:pointer; } .ds-primary:hover { background:#044b62; } .ds-primary:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; } .ds-primary:disabled { opacity:.65; cursor:not-allowed; }"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Viewer, navigation, and replay controls use the existing outlined action style.",
+      "html": "<button type=\"button\" class=\"ds-secondary\">Tampilan daftar</button>",
+      "css": ".ds-secondary { font:inherit; min-height:44px; border:1px solid var(--accent,#075d78); background:white; color:var(--accent,#075d78); padding:8px 16px; border-radius:4px; cursor:pointer; } .ds-secondary:hover { background:#eaf1f5; } .ds-secondary:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; } .ds-secondary:disabled { opacity:.65; cursor:not-allowed; }"
+    },
+    {
+      "name": "Native labelled field",
+      "kind": "input",
+      "description": "Existing native form treatment; preserve explicit labels and keyboard focus.",
+      "html": "<label class=\"ds-label\" for=\"ds-username\">Username</label><input class=\"ds-input\" id=\"ds-username\" name=\"username\" autocomplete=\"username\">",
+      "css": ".ds-label { display:block; margin-bottom:5px; font-weight:600; color:var(--ink,#1b2b39); } .ds-input { font:inherit; min-height:44px; padding:8px; border:1px solid #738593; border-radius:4px; background:white; color:var(--ink,#1b2b39); max-width:100%; caret-color:var(--accent,#075d78); } .ds-input:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; }"
+    },
+    {
+      "name": "Case navigation",
+      "kind": "nav",
+      "description": "Wrapping native links with a teal underline and aria-current for the active case section.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"Bagian kasus\"><a href=\"#cases/CASE-001/summary\">Summary &amp; Options</a><a href=\"#cases/CASE-001/workflow\" aria-current=\"page\">Agent Workflow</a><a href=\"#cases/CASE-001/evidence\">Evidence Review</a></nav>",
+      "css": ".ds-tabs { display:flex; flex-wrap:wrap; gap:8px 24px; padding:8px 0; border-bottom:1px solid var(--line,#c7d1d8); background:transparent; } .ds-tabs a { color:var(--muted,#485b6a); text-decoration:none; padding:6px 0; } .ds-tabs a[aria-current=page] { color:var(--accent,#075d78); font-weight:700; border-bottom:2px solid var(--accent,#075d78); } .ds-tabs a:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; }"
+    },
+    {
+      "name": "Requirement status",
+      "kind": "chip",
+      "description": "Non-interactive status badges retain explicit state text alongside semantic color.",
+      "html": "<span class=\"ds-badge ds-match\">MATCH</span> <span class=\"ds-badge ds-unknown\">UNKNOWN</span> <span class=\"ds-badge ds-blocked\">BLOCKED</span>",
+      "css": ".ds-badge { display:inline-block; padding:3px 7px; border-radius:3px; font-size:12px; font-weight:700; color:#193446; background:#e5edf3; } .ds-match { color:#175036; background:#e5f2e9; } .ds-unknown { color:#714701; background:#fff1ce; } .ds-blocked { color:#8d211d; background:#fae8e6; }"
+    },
+    {
+      "name": "Review panel",
+      "kind": "card",
+      "description": "Flat bordered containers continue the incumbent workspace without shadows.",
+      "html": "<section class=\"ds-panel\"><h3 class=\"ds-panel-title\">Approval &amp; Actions</h3><p>Production release: BLOCKED.</p></section>",
+      "css": ".ds-panel { padding:20px; background:var(--surface,#fff); border:1px solid var(--line,#c7d1d8); border-radius:6px; margin:20px 0; color:var(--ink,#1b2b39); } .ds-panel-title { font-size:18px; margin:24px 0 8px; } @media(max-width:700px) { .ds-panel { padding:14px; } }"
+    },
+    {
+      "name": "Selected workflow node",
+      "kind": "custom",
+      "description": "Inspectable node with owner, sequence, target, textual state, and selection outline; preview omits canvas positioning.",
+      "html": "<button type=\"button\" class=\"ds-node\" aria-pressed=\"true\"><span class=\"ds-node-head\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5\"/></svg><span>Evidence</span><span class=\"ds-sequence\">3</span></span><strong>Review bukti kandidat</strong><span class=\"ds-target\">CAND-A</span><span class=\"ds-state\">READ</span></button>",
+      "css": ".ds-node { font:inherit; width:224px; height:132px; display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:12px 14px; border:1px solid #a8bbc9; border-radius:12px; color:var(--ink,#1b2b39); background:#fff; text-align:left; cursor:pointer; } .ds-node:hover { background:#edf5f8; border-color:var(--accent,#075d78); } .ds-node[aria-pressed=true] { outline:3px solid var(--accent,#075d78); outline-offset:2px; } .ds-node:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; } .ds-node-head { display:flex; align-items:center; gap:7px; color:var(--accent,#075d78); font-size:12px; } .ds-node svg { width:22px; height:22px; flex-shrink:0; } .ds-node strong { font-size:15px; font-weight:650; line-height:1.25; } .ds-target { display:block; font-size:12px; color:var(--muted,#485b6a); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ds-sequence { margin-left:auto; color:var(--muted,#485b6a); font-variant-numeric:tabular-nums; } .ds-state { font-size:10px; font-weight:700; color:#32576b; margin-top:auto; }"
+    },
+    {
+      "name": "Expandable inspector output",
+      "kind": "custom",
+      "description": "Native disclosure keeps full JSON available after the readable inspector summary.",
+      "html": "<details class=\"ds-details\"><summary>Output lengkap backend</summary><pre tabindex=\"0\">{\n  \"production_release_authorized\": false\n}</pre></details>",
+      "css": ".ds-details { margin:12px 0; color:var(--ink,#1b2b39); } .ds-details summary { cursor:pointer; min-height:36px; font-size:13px; font-weight:600; } .ds-details pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:100%; background:#f3f6f8; font-size:11px; line-height:1.6; padding:10px; border-radius:4px; max-height:260px; overflow:auto; scrollbar-color:#91a8b9 #edf2f5; scrollbar-width:thin; } .ds-details summary:focus-visible, .ds-details pre:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; }"
+    }
+  ]
+}
