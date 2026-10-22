@@ -5,5 +5,9 @@ description = "Evidence-bound manufacturing material recovery workflow"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+# Actual PDF parsing is optional; deterministic engines remain dependency-free.
+documents = ["pypdf>=6.10,<7"]
+
 [tool.unittest]
 start-directory = "tests"

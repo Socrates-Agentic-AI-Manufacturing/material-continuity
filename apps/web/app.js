@@ -38,6 +38,12 @@ async function api(path, body) {
   return data;
 }
 
+async function withProgress(node, action) {
+  node.hidden = false;
+  try { return await action(); }
+  finally { if (node.isConnected) node.hidden = true; }
+}
+
 async function perform(action) {
   if (busy) return;
   busy = true;
@@ -96,7 +102,7 @@ async function route() {
   const parts = (location.hash || '#overview').slice(1).split('/');
   const section = ['overview','cases','documents'].includes(parts[0]) ? parts[0] : 'overview';
   shell(section);
-  if (section === 'documents') return showDocuments();
+  if (section === 'documents') return showDocuments(parts[1]);
   if (section === 'cases' && parts[1]) return showCase(parts[1], parts[2] || 'summary');
   const data = await api('/api/cases');
   const cases = data.cases;
@@ -109,15 +115,85 @@ async function route() {
       <td>${item.exposed_quantity} EA / ${item.exposed_order_count} orders</td><td>${badge(item.status)}</td><td>${time(item.updated_at)}</td></tr>`)) : '<p>Belum ada kasus. Periksa inisialisasi fixture di server.</p>'}`;
 }
 
-async function showDocuments() {
-  const data = await api('/api/documents');
+async function showDocuments(revisionId) {
+  const [data, status] = await Promise.all([api('/api/documents'), api('/api/llm/status')]);
   documents = data.documents;
-  content.innerHTML = `<h1>Documents &amp; Data</h1><p>Corpus bukti sintetis yang dipakai dalam review. Dokumen dapat dibuka; extraction saat ini berasal dari prepared fixtures.</p>
-    <p class="notice">Upload PDF, automatic extraction, dan sinkronisasi eksternal belum tersedia pada tahap ini.</p>
+  const canEdit = ['QUALITY_ENGINEER','ENGINEERING_REVIEWER'].includes(session.role);
+  const item = revisionId ? await api('/api/document-revisions/' + encodeURIComponent(revisionId)) : null;
+  content.innerHTML = `<h1>Documents &amp; Data</h1><p>PDF dibaca per halaman. Ekstraksi OpenAI menghasilkan usulan, bukan evidence terverifikasi atau izin produksi. Data operasional tetap sintetis; internet dan OCR belum terhubung.</p>
+    <p><a href="#cases/CASE-001/evidence">Buka evidence kasus CASE-001</a> · <a href="#cases/CASE-001/approvals">Approval &amp; Actions</a></p>
+    ${item ? documentDetail(item, status, canEdit) : ''}
+    ${canEdit ? `<details ${!item ? 'open' : ''}><summary>Upload revisi PDF kandidat</summary><form id="upload-document" class="panel">
+      <div><label for="doc-candidate">Kandidat</label><select id="doc-candidate" name="candidate_id">${['CAND-A','CAND-B','CAND-C'].map(id=>`<option>${id}</option>`).join('')}</select></div>
+      <div><label for="doc-id">Document ID stabil antar revisi</label><input id="doc-id" name="document_id" value="DS-CAND-A" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
+      <div><label for="doc-revision">Revisi sesuai isi PDF</label><input id="doc-revision" name="revision" placeholder="Contoh: 2 atau 3" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
+      <div><label for="doc-file">PDF berbasis teks (maks. 2 MB / 20 halaman)</label><input id="doc-file" name="file" type="file" accept="application/pdf,.pdf" required></div>
+      <p>Upload hanya menyimpan dan membaca teks secara lokal. Tidak mengirim ke OpenAI atau mengaktifkan revisi. Gunakan ID yang sama untuk revisi dokumen yang sama; isi revisi lama tidak bisa ditimpa.</p>
+      <button type="submit">Upload dan baca PDF</button><p id="upload-progress" role="status" hidden>Menyimpan dan membaca halaman PDF…</p></form></details>` : '<p class="notice">Planner dapat membaca dokumen. Upload, review evidence, dan aktivasi memerlukan Engineering atau Quality.</p>'}
+    <h2>Revisi tersimpan</h2>${data.revisions.length ? table('Revisi PDF lokal; pilih detail untuk ekstraksi dan review', ['Dokumen / kandidat','Revisi','Proses','Authority'], data.revisions.map(row=>`<tr><td><a href="#documents/${escape(row.revision_id)}">${escape(row.original_name)}</a><small>${escape(row.document_id)} · ${escape(row.candidate_id)}</small></td><td>${escape(row.revision)}</td><td>${badge(row.status)}<small>${escape(row.error || '')}</small></td><td>${row.active ? 'AKTIF' : 'Arsip / belum aktif'}<small>${row.reviewed_by ? 'Direview ' + escape(row.reviewed_by) : 'Evidence belum direview'}</small></td></tr>`)) : '<p>Belum ada PDF yang diupload. Corpus awal di bawah masih memakai prepared evidence sampai dossier kandidat diaktifkan.</p>'}
+    <h2>Corpus dan sumber bukti</h2>
     ${table('Dokumen technical / quality', ['Dokumen','ID / Owner','Revisi','Effective date','Halaman','Checksum'], documents.map(item=>`<tr>
       <td><a href="/documents/${encodeURIComponent(item.filename)}" target="_blank" rel="noopener">${escape(item.filename)}</a></td>
-      <td>${escape(item.document_id)}<small>${escape(item.owner)}</small></td><td>${escape(item.revision)}</td><td>${escape(item.effective_date)}</td><td>${item.page_count}</td>
+      <td>${escape(item.document_id)}<small>${escape(item.owner)}</small></td><td>${escape(item.revision)}</td><td>${escape(item.effective_date || 'Belum dipetakan')}</td><td>${item.page_count}</td>
       <td>${badge(item.checksum_valid ? 'MATCH' : 'MISMATCH')}</td></tr>`))}`;
+  const upload = document.querySelector('#upload-document');
+  if (upload) upload.onsubmit = event=>{
+    event.preventDefault();
+    perform(async()=>{
+      const values = new FormData(upload);
+      const file = values.get('file');
+      if (!file.size || file.size > 2 * 1024 * 1024) throw new Error('Pilih PDF berukuran maksimal 2 MB.');
+      await withProgress(document.querySelector('#upload-progress'), async()=>{
+        const encoded = await new Promise((resolve,reject)=>{
+          const reader = new FileReader();
+          reader.onload = ()=>resolve(String(reader.result).split(',')[1]);
+          reader.onerror = ()=>reject(new Error('File tidak dapat dibaca. Pilih ulang PDF.'));
+          reader.readAsDataURL(file);
+        });
+        const result = await api('/api/documents', {candidate_id:values.get('candidate_id'), document_id:values.get('document_id'), revision:values.get('revision'), filename:file.name, content_base64:encoded});
+        location.hash = '#documents/' + result.revision_id;
+        notify(result.error ? 'PDF tersimpan tetapi belum terbaca: ' + result.error : 'PDF tersimpan. Review teks sebelum ekstraksi OpenAI.');
+      });
+    });
+  };
+  if (!item) return;
+  const endpoint = '/api/document-revisions/' + encodeURIComponent(item.revision_id);
+  for (const action of ['extract','review','activate']) {
+    const form = document.querySelector('#document-' + action);
+    if (!form) continue;
+    form.onsubmit = event=>{
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      perform(async()=>{
+        const progress = form.querySelector('[role="status"]');
+        if (progress) progress.hidden = false;
+        const body = action === 'extract' ? {consent_openai:true} : action === 'activate' ? {expected_active_revision_id:item.active_revision_id, confirm_invalidation:true} : {
+          extraction_hash:item.extraction_hash, accepted_rows:[...new FormData(form).getAll('row')].map(Number), confirm_scope:true,
+        };
+        try { await api(endpoint + '/' + action, body); }
+        catch(error) { if (progress) progress.hidden = true; throw error; }
+        await showDocuments(revisionId);
+        notify(action === 'activate' ? 'Revisi aktif. Approval lama langsung diblokir; buka kasus dan jalankan investigasi ulang.' : action === 'review' ? (item.active_revision_id === item.revision_id ? 'Review tersimpan untuk revisi aktif. Investigasi ulang kasus diperlukan sebelum approval atau tindakan.' : 'Review tersimpan. Aktifkan revisi ini lalu investigasi ulang kasus.') : 'Usulan ekstraksi tersimpan. Periksa kutipan dan applicability sebelum menerima evidence.');
+      });
+    };
+  }
+}
+
+function documentDetail(item, status, canEdit) {
+  const isActive = item.active_revision_id === item.revision_id;
+  const rows = item.extraction?.rows || [];
+  return `<section class="document-detail" aria-label="Detail revisi PDF"><h2>${escape(item.document_id)} · Rev ${escape(item.revision)}</h2>
+    <p>${escape(item.candidate_id)} · ${badge(item.status)} · ${isActive ? 'AKTIF' : 'Belum aktif / arsip'}<br><a href="/documents/${escape(item.revision_id)}.pdf" target="_blank" rel="noopener">Buka PDF asli</a> · <a href="#documents">Daftar dokumen</a></p>
+    <p class="muted">Diunggah ${time(item.uploaded_at)} oleh ${escape(item.uploaded_by)}. SHA-256: <code>${escape(item.sha256)}</code></p>
+    ${item.error ? `<p class="notice danger">${escape(item.error)}. ${item.pages.length ? 'Ekstraksi dapat dicoba kembali secara eksplisit.' : 'PDF tidak seluruhnya terbaca. Unggah revisi baru berupa PDF teks; OCR belum tersedia.'}</p>` : ''}
+    <details><summary>Teks asli hasil pembacaan (${item.pages.length} halaman)</summary>${item.pages.map((text,index)=>`<h3>Halaman ${index+1}</h3><pre class="document-text">${escape(text)}</pre>`).join('')}</details>
+    ${canEdit && !item.extraction && item.pages.length ? `<form id="document-extract" class="panel"><h3>Ekstraksi Evidence Specialist</h3><label class="document-check"><input type="checkbox" required> Saya mengizinkan teks PDF dikirim ke OpenAI (${escape(status.model || 'model belum dikonfigurasi')}) dan memahami kemungkinan biaya API.</label><button type="submit" ${!status.configured ? 'disabled data-disabled="true"' : ''}>Ekstrak evidence dengan OpenAI</button>${!status.configured ? '<p>OpenAI belum dikonfigurasi di backend.</p>' : ''}<p role="status" hidden>OpenAI sedang mengekstrak teks. Tunggu hasil; tidak ada retry otomatis.</p></form>` : ''}
+    ${item.extraction ? `<h3>Review usulan evidence</h3><p>Periksa kandidat, revisi, nilai, konteks, dan applicability pada PDF. Kutipan yang ditemukan belum membuktikan interpretasi AI benar. Pilih hanya klaim yang memang didukung; sisanya tetap UNKNOWN.</p>
+      <form id="document-review">${rows.length ? rows.map((row,index)=>`<div class="evidence-proposal"><label class="document-check"><input name="row" value="${index}" type="checkbox" ${item.reviewed_by || row.value===null || !canEdit ? 'disabled' : ''} ${item.accepted_rows.includes(index) ? 'checked' : ''}> ${escape(row.property)}: ${escape(row.value ?? 'UNKNOWN')} ${escape(row.unit || '')}</label><p>Applicability: ${escape(row.applicability)} · <a href="/documents/${escape(item.revision_id)}.pdf#page=${row.page}" target="_blank" rel="noopener">Halaman ${row.page}</a></p><blockquote>${escape(row.quote)}</blockquote></div>`).join('') : '<p>Tidak ada klaim yang didukung. Evidence teknis akan tetap UNKNOWN.</p>'}
+      ${!item.reviewed_by && canEdit ? '<label class="document-check"><input type="checkbox" required> Saya telah memeriksa identitas kandidat/revisi dan konteks tiap klaim yang dipilih. Ini bukan persetujuan produksi.</label><button type="submit">Simpan review evidence</button>' : `<p>Reviewer: ${escape(item.reviewed_by || 'Belum direview')}. Review tersimpan tidak dapat diubah; koreksi memerlukan revisi baru.</p>`}</form>
+      <p class="muted">Model ${escape(item.extraction.model)} · ${escape(item.extraction.usage?.input_tokens ?? '—')} input / ${escape(item.extraction.usage?.output_tokens ?? '—')} output tokens. Hasil disimpan; membuka ulang tidak memanggil API.</p>` : ''}
+    ${canEdit && !isActive ? `<form id="document-activate" class="panel"><h3>Aktifkan sebagai sumber terkini</h3><p class="notice">Aktivasi menggantikan revisi aktif untuk Document ID ini dan menghentikan prepared technical evidence kandidat. Jika ekstraksi belum direview atau gagal, evidence tersebut menjadi UNKNOWN. Approval lama langsung diblokir, bahkan sebelum investigasi ulang.</p><label class="document-check"><input type="checkbox" required> Saya menetapkan dokumen ini sebagai sumber terkini dan memahami perlunya review kasus baru.</label><button type="submit">Aktifkan revisi dan batalkan freshness lama</button></form>` : ''}
+    <p><a href="#cases/CASE-001/evidence">Lanjut ke kasus untuk investigasi ulang dan perbandingan deterministik</a></p></section>`;
 }
 
 const snapshot = ()=>({case_version:view.current.case_version, case_hash:view.current.case_hash});

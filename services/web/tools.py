@@ -2,7 +2,9 @@
 
 from dataclasses import replace
 from datetime import datetime
+from decimal import Decimal
 from hashlib import sha256
+import json
 
 from agents.evidence_specialist import MockEvidenceRetriever
 from agents.evidence_specialist.fixtures import load_qualification_procedure_fixtures
@@ -12,12 +14,16 @@ from core.simulation import simulate_recovery
 from core.simulation.fixtures import load_simulation_fixtures
 from core.simulation.models import ScenarioType
 from core.requirements import CandidateDecision
+from core.case_state.models import SourceVersion, SourceType
+from core.evidence import EvidenceExtraction
+from core.evidence.models import ExtractionSupportStatus
 
 
 class WebFixtureTools(FixtureRecoverySupervisorTools):
-    def __init__(self, fixture_root, document_root):
+    def __init__(self, fixture_root, document_root, document_state=()):
         super().__init__(fixture_root)
         self.document_root = document_root
+        self.document_state = tuple(document_state)
         versions = {source.source_id: source.version for source in self.get_source_versions()}
         document_sources = {
             "Candidate_A_Datasheet_Rev2.pdf": "SRC-CAND-A-DATASHEET",
@@ -28,8 +34,27 @@ class WebFixtureTools(FixtureRecoverySupervisorTools):
             if item.source_document in document_sources else item
             for item in load_evidence_extraction_fixtures(fixture_root)
         )
+        # An active uploaded candidate dossier replaces prepared technical
+        # evidence, never QMS authority. Pending/failed/unreviewed => UNKNOWN.
+        replaced = {item["candidate_id"] for item in self.document_state}
+        extractions = tuple(item for item in extractions if item.candidate_id not in replaced or item.property == "PLANT_QUALIFICATION_RELEASE")
+        uploaded = []
+        for document in self.document_state:
+            if not document.get("reviewed_by"):
+                continue
+            for index in document["accepted_rows"]:
+                row = document["extraction"]["rows"][index]
+                value = Decimal(row["value"]) if row["property"] in ("BORE_DIAMETER", "DYNAMIC_LOAD") else row["value"]
+                uploaded.append(EvidenceExtraction(
+                    extraction_id=f"{document['revision_id']}:{index}", candidate_id=document["candidate_id"],
+                    property=row["property"], value=value, unit=row["unit"],
+                    source_document=document["revision_id"] + ".pdf", source_revision=document["revision"],
+                    current_source_revision=document["revision"], source_page=str(row["page"]),
+                    source_location=row["quote"], applicability=row["applicability"], applicable=True,
+                    support_status=ExtractionSupportStatus.SUPPORTED,
+                ))
         self._evidence_retriever = MockEvidenceRetriever(
-            extractions=extractions,
+            extractions=extractions + tuple(uploaded),
             procedures=load_qualification_procedure_fixtures(fixture_root),
         )
 
@@ -44,10 +69,20 @@ class WebFixtureTools(FixtureRecoverySupervisorTools):
         for path in paths:
             digest.update(path.name.encode())
             digest.update(path.read_bytes())
-        return tuple(
+        sources = tuple(
             replace(source, content_hash=digest.hexdigest())
             for source in super().get_source_versions()
         )
+        for item in getattr(self, "document_state", ()):
+            evidence = item["extraction"] if item.get("reviewed_by") else None
+            content = {"sha256": item["sha256"], "revision_id": item["revision_id"],
+                       "extraction": evidence, "accepted_rows": item["accepted_rows"]}
+            fingerprint = sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+            sources += (SourceVersion(
+                source_id=f"UPLOAD:{item['candidate_id']}:{item['document_id']}", source_type=SourceType.DOCUMENT,
+                version=item["revision"], observed_at=datetime.fromisoformat(item["uploaded_at"]), content_hash=fingerprint,
+            ),)
+        return sources
 
     def simulate_recovery(self, *, exposure, shortage_at: datetime):
         scenarios = load_simulation_fixtures(self._fixture_root)

@@ -1416,11 +1416,12 @@ tabs, with audit history and agent/tool activity available in the case.
 The functional local web slice now implements this navigation using plain
 HTML/CSS/JavaScript, a Python standard-library HTTP adapter, and SQLite persistence
 (ADR-007). The user explicitly prioritizes functionality; visual polish is
-deferred. Documents & Data currently supports corpus browsing, not upload or
-runtime extraction. The local investigation remains a Python workflow with mock
-retrieval. As of 2026-10-22 an explicit OpenAI advisory review is live-connected
-in Agent Workflow; this does not perform document extraction or replace the
-local Evidence Specialist. The viewer/replay is not an executable flow editor.
+deferred. Documents & Data now supports controlled candidate PDF uploads,
+immutable revisions, real per-page parsing, explicit OpenAI proposals and human
+evidence review/activation. Local investigation retrieves accepted active PDF
+evidence, using prepared evidence only for candidates without active dossiers.
+OpenAI advisory review in Agent Workflow is separate from document extraction.
+The viewer/replay is not an executable flow editor.
 
 The five review views below remain the original detailed UI guidance.
 
@@ -1789,7 +1790,7 @@ Recommended sequence:
 - [x] Read-only document corpus with PDF page links.
 - [x] Explicit OpenAI advisory review and separately persisted review history.
 - [x] Interactive read-only Agent Workflow canvas/list, node inspector and replay.
-- [ ] Document upload and actual extraction/revision workflow.
+- [x] Local document upload and actual text-PDF extraction/revision workflow.
 - [ ] Visual polish and broader responsive/a11y verification.
 
 ## Phase 10 — Event / Observability
@@ -1802,18 +1803,20 @@ Recommended sequence:
 
 ## Phase 11 — Acceptance Demo
 
-- [ ] Run canonical scenario end-to-end.
-- [ ] Hard mismatch candidate rejected.
-- [ ] Missing evidence remains UNKNOWN.
-- [ ] Qualification timing extends past shortage.
-- [ ] Recovery scenarios compared.
-- [ ] Human approves qualification task.
-- [ ] QMS task receipt generated.
-- [ ] Production release remains blocked.
-- [ ] Evidence revision changes.
-- [ ] Case version increments.
-- [ ] Previous approval becomes invalid.
-- [ ] Duplicate action is blocked.
+Local synthetic acceptance (not AWS deployment or a real factory pilot):
+
+- [x] Run canonical scenario end-to-end through local web/API and real PDF ingestion.
+- [x] Hard mismatch candidate rejected.
+- [x] Missing evidence remains UNKNOWN.
+- [x] Qualification timing extends past shortage.
+- [x] Recovery scenarios compared.
+- [x] Reviewer-role demo session approves qualification task.
+- [x] Mock QMS task receipt generated.
+- [x] Production release remains blocked.
+- [x] Actual PDF evidence revision changes (Rev2 25 mm → Rev3 30 mm).
+- [x] Case version increments.
+- [x] Previous approval becomes invalid, including before reinvestigation.
+- [x] Duplicate action is blocked.
 
 ---
 
@@ -1828,7 +1831,7 @@ Project phase: FUNCTIONAL LOCAL WEB MVP
 Proposal: COMPLETE
 Hackathon qualification: FINAL STAGE
 GitHub strategy: DECIDED — one organization, one monorepo
-Implementation: BACKEND-CONNECTED REVIEW UI + SQLITE + DEMO AUTH + INTERACTIVE WORKFLOW VIEWER + EXPLICIT OPENAI REVIEW COMPLETE LOCALLY; document ingestion/extraction and cloud remain pending
+Implementation: LOCAL REVIEW UI + SQLITE + AUTH + WORKFLOW VIEWER + OPENAI REVIEW + CONTROLLED PDF REVISION/EXTRACTION/REVIEW IMPLEMENTED; cloud and external retrieval remain pending
 ```
 
 ## Progress table
@@ -1856,12 +1859,12 @@ Implementation: BACKEND-CONNECTED REVIEW UI + SQLITE + DEMO AUTH + INTERACTIVE W
 | Evidence Specialist | LOCAL DONE | Guardrailed role prompt, typed output, replaceable retrieval interface, fixture-backed adapter, requirement mapping, gap/procedure detection, and Candidate A/B branches; live Bedrock adapter pending |
 | Recovery Supervisor | LOCAL DONE | Guardrailed role, controlled fixture-backed tool interface, approved-path-first branching, conditional Evidence Specialist calls, case creation, tool trace, and structured summary; live AgentCore runtime pending |
 | OpenAI inference adapter | WEB LIVE VERIFIED | Existing key and gpt-5.4-mini; explicit cost-acknowledged review via web verified (8 calls); local provider now openai; no automatic calls; full reliability/evaluation pending |
-| UI | LOCAL FUNCTIONAL | Overview, case detail tabs including Agent Workflow, evidence/citations, scenarios/task schedule, approval/receipt/blocked reasons, history and trace, read-only Documents & Data |
+| UI | LOCAL FUNCTIONAL | Overview, case detail/Agent Workflow, evidence/citations, scenarios, approval/receipt/history and controlled PDF upload/review/activation in Documents & Data |
 | Interactive agent workflow | LOCAL DONE | User-confirmed n8n-like viewer, not editor: node inspector, dotted canvas, zoom/pan, keyboard/list alternative, replay; grouped local map separate from real OpenAI tool order; desktop/mobile browser verified |
 | Advisory review history | LOCAL DONE | Separate SQLite ai_reviews table restores latest completed review without paid rerun; old hash/source state marks archive; decision/approval/task state unchanged |
 | Web API and persistence | LOCAL DONE | Standard-library HTTP adapter; SQLite aggregate/history, scoped approvals and mock tasks; serial read/check/write transactions and unique target keys prevent concurrent duplicate writes |
 | Authenticated web identity | LOCAL DEMO DONE | Password-verified demo users, server-owned roles, expiring opaque HttpOnly cookie sessions, CSRF/origin checks; enterprise SSO/public deployment auth not implemented |
-| Runtime PDF ingestion | TODO | Corpus is browsable; upload, new document versions, and actual runtime extraction remain pending |
+| Runtime PDF ingestion | LOCAL IMPLEMENTED | Immutable PDF bytes/checksums, per-page text, explicit OpenAI proposals, reviewer-selected evidence, active revisions and ingestion-driven case updates; no OCR/internet/cloud |
 | EventBridge | TODO | P2 |
 | Observability | TODO | P2 |
 | SAP live integration | OUT OF MVP | Mock adapter is sufficient |
@@ -1871,6 +1874,35 @@ Implementation: BACKEND-CONNECTED REVIEW UI + SQLITE + DEMO AUTH + INTERACTIVE W
 # 27. Session Progress Log
 
 Append new entries; do not overwrite old ones.
+
+## 2026-10-22 — Controlled PDF revisions and evidence-driven case updates
+
+### Completed
+
+- At the user's request, committed and pushed existing web/OpenAI/workflow work first as `f78cb2d` on `main`; baseline 141 Python and 10 Node tests passed.
+- Added optional `documents` dependency (`pypdf>=6.10,<7`) for actual PDF parsing, not a replacement framework. Deterministic engines remain dependency-free. Bundled parser tested: 6.10.0.
+- Store original PDF bytes, SHA-256, candidate/document/revision identity and upload actor/time in SQLite. Same identity cannot overwrite bytes; exact repeated uploads return the same immutable revision. Drafts do not invalidate cases.
+- Parse text per page in a 15-second subprocess with input/page/text/content limits. Encrypted, malformed, empty/image-only or partly unreadable PDFs fail explicitly; no OCR or external link execution. This local worker is not a hardened public hostile-file sandbox.
+- Added explicit, potentially paid Evidence Specialist extraction through the existing OpenAI transport. Only candidate bore/load/lubricant claims are allowed; release authority is excluded. Validate page/quote occurrence, numeric value/unit/property context and scope. Quote occurrence does not prove semantic correctness: reviewer must inspect candidate/revision/applicability and accept individual claims.
+- Persist successful proposals and model/usage/cache identity once per immutable revision, including bytes, candidate/document/revision, parser, extractor/prompt and model. Reopening/repeated extraction uses stored output, not another call. Failures can be retried explicitly, never automatically.
+- Added immutable evidence review, Engineering/Quality-only mutations, explicit activation and optimistic active-pointer checks. Activation immediately changes authoritative fingerprints even if processing is pending/failed, blocking old actions before re-investigation. An active candidate dossier removes prepared technical evidence for that candidate; unreviewed/missing claims remain UNKNOWN. QMS release gates remain separately synthetic and blocked.
+- Reuse existing Evidence Specialist retrieval interface, comparison, qualification/scenario calculations, case hashing, approval and action adapter. All active candidate document slots participate; retrieval is candidate/property/active-revision scoped, not vector or internet search.
+- Extended Documents & Data with upload, page text, proposal citations/checkbox review, cost/data-transfer consent, errors, active/archive revisions and case links. Preserved the incumbent visual system. Workflow viewer now explains prepared versus reviewed uploaded evidence accurately.
+- Added separate synthetic Rev3 demo PDF (30 mm rather than Rev2's 25 mm) and a reproducible build-only generator; canonical PDFs and JSON fixtures are unchanged. Rendered and visually checked all four new pages.
+- Offline acceptance covers real parsing, mocked inference, review/activation, Rev2 MATCH/gap/qualification/approval/mock receipt, Rev3 hard rejection/new version/stale authorization, duplicate blocking/restart, unseen PDF and malformed/scan/encrypted/provenance cases. Final verification: 152 Python tests, 16 Node tests, JavaScript syntax and diff checks pass.
+- Browser live extraction with existing gpt-5.4-mini succeeded twice: Rev2 and Rev3 each reported 1,097 input / 113 output tokens, extracting bore on page 2 and load on page 3. Final extractor-v2 prompt independently verified Rev3 with 1,108 input / 113 output tokens. Three explicit paid calls total in this implementation session; no cost amount or reliability beyond smoke tests is inferred.
+- Browser demo used the quality demo role to review/activate Rev2, create Case Version 2 and mock receipt `QMS-QUAL-30EA9F3F44`, then activate unprocessed Rev3, review its actual 30 mm claim and reinvestigate to Version 3 / hard rejection. This is a scripted synthetic role demonstration, not real Engineering sign-off. Existing earlier records were preserved.
+- Restart/reload retained both reviewed PDF revisions, all three case versions, four approval records and two receipts. No model call was issued by restart or browsing. Uploaded document effective dates are left unknown rather than fabricated from upload dates; uploader is labelled separately from document owner.
+- Impeccable scoped finish review requested one P2 fix: upload progress persisted after rejection. Added guarded try/finally cleanup, two regression tests and browser-verified immutable-revision rejection (progress hidden, submit enabled). Final reviewer disposition: ship, that fix resolved. Desktop/user 1126px and mobile 390px inspected, with no horizontal document overflow; mobile tables scroll internally. No comprehensive accessibility certification is claimed. Detector ran once in degraded regex mode with existing design-token advisory findings, not a clean full audit.
+- Merged PDF workflow guidance into DESIGN.md and the component sidecar without replacing incumbent design rules/tokens; documenter validated the sidecar JSON (nine component previews).
+
+### Limits and next action
+
+- Operational records, qualification SOP mapping/calendars and QMS remain synthetic. Real PDF processing does not mean real factory data. Only explicitly uploaded/activated candidate evidence replaces prepared evidence; corpus documents are not silently extracted at startup.
+- No supplier scraping/API sync, scheduler, OCR, complex drawing interpretation, AWS/Bedrock/KB/AgentCore deployment, public upload service or production identity is implemented.
+- Next: broaden document-type/requirement extraction and evaluate unseen/contradictory documents before adding allowlisted supplier updates; verify AWS only when access exists.
+
+---
 
 ## 2026-10-22 — Interactive workflow viewer and explicit OpenAI web review
 
@@ -2460,6 +2492,20 @@ Use this section for small ADRs.
 **Reason:** The user explicitly wants an interactive explanation/replay, not an editable agent workflow. Persisted advisories make actual tool order inspectable after refresh without another paid request. No third-party graph library or orchestration redesign is required.
 
 **Consequences:** Zoom/pan, node details, list mode and replay are presentation controls only. They never execute tools, reorder the agent, authorize writes or constitute live-streamed progress. Archived reviews retain their original facts and are labelled outdated. Model output is not promoted to engineering evidence. Failed-run per-node traces and document ingestion remain future work.
+
+---
+
+## ADR-010 — Immutable local PDF revisions with reviewed evidence activation
+
+**Status:** Accepted, 2026-10-22; user explicitly requested the PDF-to-document-change implementation, AWS deferred.
+
+**Previous state:** PDFs could be browsed but technical evidence came from prepared JSON.
+
+**Decision:** Add optional pypdf text parsing in a bounded local subprocess, store original bytes/revisions and active pointers in existing SQLite, extract structured proposals using the existing OpenAI adapter, require Engineering/Quality review before claims enter evidence, and re-use the existing deterministic case/approval engines. No vector database, agent framework or automatic external search.
+
+**Reason:** Actual per-page PDF parsing needs a concrete parser dependency. Immutable sources plus explicit activation support the proposal's stale-approval demo without redesigning architecture. Quote validation cannot establish engineering applicability, so model output is not automatically authoritative evidence.
+
+**Consequences:** Upload alone changes no case authority. Activation blocks stale writes immediately, including pending/failed extraction. Candidate dossier activation replaces prepared technical evidence conservatively; only accepted active claims participate, missing evidence stays UNKNOWN, and QMS release authority is never extracted. Same revision identity and reviewed evidence cannot be overwritten; corrections use a new revision. Legacy fixture-only core/CLI tests remain valid. Public hostile-file sandboxing/OCR/cloud storage are not delivered by this local adapter.
 
 ---
 
@@ -3201,17 +3247,18 @@ That is **Material Continuity**.
 Current recommended next step:
 
 ```text
-OpenAI web review and the interactive read-only workflow viewer are implemented
-and live-verified. Next implement controlled PDF upload, immutable revisions,
-page-aware extraction, and ingestion-driven case re-investigation. Keep model
-outputs separate from evidence and preserve deterministic/human gates.
+Controlled local PDF upload/revisions, page-aware parsing, explicit OpenAI
+extraction proposals, human evidence review and active-source case updates are
+implemented. Next broaden document-type coverage and adversarial/unseen document
+evaluation, then add allowlisted supplier retrieval. Preserve deterministic and
+human gates; AWS remains deferred until access exists.
 ```
 
 Proposed implementation priorities:
 
 ```text
-document upload/revision and actual extraction
-→ ingestion-driven evidence review and source-version updates
+broader document-type mapping and extraction evaluation
+→ allowlisted supplier retrieval and controlled freshness updates
 → full live evidence/retrieval/runtime adapters when access is verified
 → deployment-appropriate server/storage/identity
 → UI visual polish and full web acceptance verification

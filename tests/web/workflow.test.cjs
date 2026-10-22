@@ -17,10 +17,10 @@ function saved(view) {
     tool_trace:[{sequence:1,tool:'getExposure',target:'CASE-001'},{sequence:2,tool:'getCandidateEvidence',target:'CAND-B'},{sequence:3,tool:'getCandidateEvidence',target:'CAND-A'},{sequence:4,tool:'finishReview',target:'CASE-001'}]};
   view.latest_ai_review.facts.exposure.shortage_date='old-date';
 }
-test('local flow shows code, fixture evidence, human gate and mock action separately',()=>{
+test('local flow shows code, reviewed evidence, human gate and mock action separately',()=>{
   const nodes=workflow.build(fixture());
   assert.equal(nodes.length,9);
-  assert.equal(nodes[3].owner,'Lokal / fixture');
+  assert.equal(nodes[3].owner,'Lokal / evidence');
   assert.equal(nodes[7].status,'HUMAN_GATE');
   assert.equal(nodes[8].status,'NOT_EXECUTED');
   assert.equal(nodes[8].output.production_release_authorized,false);

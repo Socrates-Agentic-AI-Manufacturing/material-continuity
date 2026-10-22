@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-22T17:15:20+07:00",
+  "generatedAt": "2026-10-22T18:42:02+07:00",
   "title": "Functional review workspace",
   "components": [
     {
@@ -53,6 +53,13 @@
       "description": "Inspectable node with owner, sequence, target, textual state, and selection outline; preview omits canvas positioning.",
       "html": "<button type=\"button\" class=\"ds-node\" aria-pressed=\"true\"><span class=\"ds-node-head\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5\"/></svg><span>Evidence</span><span class=\"ds-sequence\">3</span></span><strong>Review bukti kandidat</strong><span class=\"ds-target\">CAND-A</span><span class=\"ds-state\">READ</span></button>",
       "css": ".ds-node { font:inherit; width:224px; height:132px; display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:12px 14px; border:1px solid #a8bbc9; border-radius:12px; color:var(--ink,#1b2b39); background:#fff; text-align:left; cursor:pointer; } .ds-node:hover { background:#edf5f8; border-color:var(--accent,#075d78); } .ds-node[aria-pressed=true] { outline:3px solid var(--accent,#075d78); outline-offset:2px; } .ds-node:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; } .ds-node-head { display:flex; align-items:center; gap:7px; color:var(--accent,#075d78); font-size:12px; } .ds-node svg { width:22px; height:22px; flex-shrink:0; } .ds-node strong { font-size:15px; font-weight:650; line-height:1.25; } .ds-target { display:block; font-size:12px; color:var(--muted,#485b6a); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ds-sequence { margin-left:auto; color:var(--muted,#485b6a); font-variant-numeric:tabular-nums; } .ds-state { font-size:10px; font-weight:700; color:#32576b; margin-top:auto; }"
+    },
+    {
+      "name": "Document evidence proposal",
+      "kind": "custom",
+      "description": "Native unchecked evidence acceptance with applicability, source quote, and PDF page link; saved review selections become immutable.",
+      "html": "<div class=\"ds-proposal\"><label class=\"ds-document-check\"><input name=\"row\" value=\"0\" type=\"checkbox\"> Klaim kandidat: nilai usulan</label><p>Applicability: kandidat dan revisi yang ditinjau · <a href=\"#documents\">Halaman 1</a></p><blockquote>Kutipan sumber PDF untuk diperiksa sebelum menerima klaim.</blockquote></div>",
+      "css": ".ds-proposal { padding:16px 0; border-bottom:1px solid var(--line,#c7d1d8); color:var(--ink,#1b2b39); } .ds-document-check { display:flex; align-items:start; gap:10px; font-weight:400; margin-bottom:5px; } .ds-document-check input { width:20px; min-height:20px; flex:0 0 20px; margin:3px 0; accent-color:var(--accent,#075d78); } .ds-document-check input:focus-visible, .ds-proposal a:focus-visible { outline:3px solid #ae4c05; outline-offset:3px; } .ds-document-check input:disabled { cursor:not-allowed; } .ds-proposal p { max-width:75ch; } .ds-proposal a { color:var(--accent,#075d78); text-underline-offset:3px; } .ds-proposal a:hover { text-decoration-thickness:2px; } .ds-proposal blockquote { margin:8px 0; padding:8px 12px; background:var(--surface,#fff); overflow-wrap:anywhere; }"
     },
     {
       "name": "Expandable inspector output",

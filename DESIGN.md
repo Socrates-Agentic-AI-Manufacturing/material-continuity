@@ -51,8 +51,10 @@ explanation and replay viewer inspired by n8n; it is not a workflow editor.
 
 Desktop browser flow was exercised through login, evidence, scenarios, approval,
 mock task creation, and reload persistence. Optional OpenAI advisory is available
-through an explicit paid review request. Public deployment and runtime PDF
-extraction remain unavailable.
+through an explicit paid review request. Documents & Data extends the same native
+form and table language with local PDF upload, page-text inspection, optional paid
+OpenAI extraction, human evidence review, and revision activation. Public deployment
+remains unavailable; OCR and internet/AWS evidence sources remain unconnected.
 
 ## Colors
 
@@ -80,7 +82,10 @@ Recovery Cases, and Documents & Data. Case links/tabs retain Summary & Options,
 Evidence Review, Recovery Scenarios, and Approval & Actions, with Agent Workflow
 added between Summary & Options and Evidence Review. Wrap navigation naturally;
 keep accessible table headers/captions and horizontal table scrolling on narrow
-screens.
+screens. Document revision and corpus tables scroll within their own containers;
+long source text and proposal quotes wrap without widening the page. Keep PDF
+upload/review forms within the established (500px) form width. Page-text disclosures
+use internally scrolling, wrapped text with a (360px) maximum height.
 
 The workflow workspace pairs the connected-node canvas with a readable inspector
 on the right (290px, reduced to 250px at 1000px or less). At (700px) or less, stack the
@@ -109,6 +114,22 @@ compact connected tiles, while forms and tables retain their native structure.
   submit action. Show provider availability, progress, and errors beside it;
   stale sources or unavailable configuration disable the request. No automatic
   request or retry is triggered by opening the page, switching views, or replay.
+- PDF upload and source inspection: use labelled native candidate, stable document
+  ID, revision, and file fields, followed by an explicit upload action. Show file
+  limits and process status in text. Preserve the form on upload rejection, clear
+  pending status, and restore eligible controls. Native disclosures expose the
+  original page text; keep the original PDF link visible beside revision identity.
+- Evidence proposals: show each property/value with its applicability, quoted
+  source text, and a direct PDF page link. Acceptance checkboxes begin unchecked;
+  unavailable claims remain disabled and UNKNOWN. A separate unchecked scope
+  confirmation precedes saving. Persisted reviewer identity and disabled selection
+  distinguish an immutable saved review from an editable proposal. The PDF
+  extraction form has its own unchecked paid OpenAI consent and explicit submit.
+- Revision authority: label active and archived/unactivated revisions in text in
+  the revision table. Place the invalidation warning and unchecked confirmation
+  beside activation. Explain that activation immediately blocks old approvals and
+  actions, while case results require a manual reinvestigation to refresh. Keep
+  this authority language adjacent to the action rather than relying on color.
 - Workflow nodes: use a button with owner/icon, sequence, title, target, and
   textual status. Selection uses `aria-pressed` and updates the adjacent inspector.
   Connected nodes support inspection only; do not imply editable execution rules.
@@ -133,8 +154,10 @@ compact connected tiles, while forms and tables retain their native structure.
 
 - Do preserve the established navigation, tables, native forms, focus behavior,
   accessible semantics, and functionality-first scope when extending the viewer.
-- Do identify fixture evidence and unavailable automatic PDF reading in visible
-  copy, and keep backend facts separate from advisory prose.
+- Do distinguish prepared evidence, locally read PDF text, unverified extraction
+  proposals, human-reviewed claims, and active/archive revisions in visible copy.
+- Do keep backend facts separate from advisory prose and preserve explicit human
+  consent, evidence acceptance, and activation controls.
 - Don't introduce a new visual identity or require imagery/decorative animation
   for this milestone; visual-world selection and comprehensive polish remain deferred.
 - Don't turn replay into execution, invent missing evidence, or infer authorization

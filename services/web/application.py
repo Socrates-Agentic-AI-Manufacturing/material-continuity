@@ -23,6 +23,7 @@ from services.llm.openai import ModelError, OpenAIResponsesClient, OpenAISetting
 
 from .store import Store
 from .tools import WebFixtureTools
+from services.documents.repository import DocumentRepository
 
 
 DEMO_USERS = {
@@ -41,6 +42,7 @@ class ApplicationError(Exception):
 class Application:
     def __init__(self, database: Path, fixture_root: Path, document_root: Path, *, demo_password="local-demo", llm_settings=None, llm_client=None):
         self.store = Store(database)
+        self.document_repository = DocumentRepository(self.store)
         self.fixture_root, self.document_root = fixture_root, document_root
         # Opt in explicitly at launch; tests/default apps never discover keys or
         # make paid API calls merely because a key exists on the machine.
@@ -53,8 +55,8 @@ class Application:
     def now():
         return datetime.now(timezone.utc)
 
-    def tools(self):
-        return WebFixtureTools(self.fixture_root, self.document_root)
+    def tools(self, db=None):
+        return WebFixtureTools(self.fixture_root, self.document_root, self.document_repository.active_state(db))
 
     def initialize(self, password):
         if not password:
@@ -69,10 +71,10 @@ class Application:
                     (user_id, role.value, salt, password_hash),
                 )
             if db.execute("SELECT 1 FROM cases WHERE case_id='CASE-001'").fetchone() is None:
-                result = self.investigation("CASE-001", self.now())
+                result = self.investigation("CASE-001", self.now(), db)
                 self.store.save_case(db, result.case, json.dumps(canonicalize(result.tool_trace)))
 
-    def investigation(self, case_id, created_at):
+    def investigation(self, case_id, created_at, db=None):
         return run_recovery_workflow(
             RecoverySupervisorRequest(
                 case_id=case_id, event_id="EVT-DELAY-001",
@@ -81,7 +83,7 @@ class Application:
                 as_of=datetime(2026, 9, 29, tzinfo=timezone.utc),
                 shortage_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
                 created_at=created_at,
-            ), tools=self.tools(),
+            ), tools=self.tools(db),
         )
 
     def login(self, user_id, password, old_token=None):
@@ -180,7 +182,7 @@ class Application:
             case = self.store.get_case(db, case_id)
             self.check_snapshot(case, body)
             now = self.now()
-            result = self.investigation(case_id, now)
+            result = self.investigation(case_id, now, db)
             fresh = result.case.current
             updated = update_case(case, update=RecoveryCaseUpdate(
                 exposure=fresh.exposure, recovery_options=fresh.recovery_options,
@@ -205,14 +207,14 @@ class Application:
             with self.store.transaction() as db:
                 case = self.store.get_case(db, case_id)
                 self.check_snapshot(case, body)
-                self.check_current_sources(case)
+                self.check_current_sources(case, db)
                 version = case.current
             result = run_openai_review(version, self.llm_client)
             result["created_at"] = self.now().isoformat()
             with self.store.transaction() as db:
                 current = self.store.get_case(db, case_id)
                 self.check_snapshot(current, body)
-                self.check_current_sources(current)
+                self.check_current_sources(current, db)
                 # Advisory execution history lives separately from immutable
                 # decision versions. Refresh/restart never requires a paid rerun.
                 db.execute("INSERT INTO ai_reviews(case_id, payload) VALUES (?, ?)", (case_id, json.dumps(result)))
@@ -232,8 +234,8 @@ class Application:
         finally:
             self._llm_slot.release()
 
-    def check_current_sources(self, case):
-        if self.source_state(case.current.source_versions) != self.source_state(self.tools().get_source_versions()):
+    def check_current_sources(self, case, db=None):
+        if self.source_state(case.current.source_versions) != self.source_state(self.tools(db).get_source_versions()):
             raise ApplicationError(409, "SOURCE_STATE_CHANGED", "Sumber berubah. Jalankan investigasi ulang sebelum review AI.")
 
     @staticmethod
@@ -252,7 +254,7 @@ class Application:
         with self.store.transaction() as db:
             case = self.store.get_case(db, case_id)
             self.check_snapshot(case, body)
-            if self.source_state(case.current.source_versions) != self.source_state(self.tools().get_source_versions()):
+            if self.source_state(case.current.source_versions) != self.source_state(self.tools(db).get_source_versions()):
                 raise ApplicationError(409, "SOURCE_STATE_CHANGED", "Sumber berubah. Jalankan investigasi ulang sebelum approval.")
             target = next((item for item in self.qualification_targets(case) if item["candidate_id"] == body.get("candidate_id") and item["requirement_id"] == body.get("requirement_id")), None)
             if target is None:
@@ -290,7 +292,7 @@ class Application:
                 approval=ApprovalValidationRequest(
                     approval_id=approval.approval_id, action=ControlledAction.CREATE_QUALIFICATION_TASK,
                     principal=self.principal(session), evaluated_at=self.now(),
-                    current_source_versions=self.tools().get_source_versions(), idempotency_key=key,
+                    current_source_versions=self.tools(db).get_source_versions(), idempotency_key=key,
                 ),
             ))
             if not result.created:
@@ -304,4 +306,31 @@ class Application:
 
     def documents(self):
         manifest = json.loads((self.document_root / "manifest.json").read_text(encoding="utf-8"))
-        return [{**item, "checksum_valid": sha256((self.document_root / item["filename"]).read_bytes()).hexdigest() == item["sha256"]} for item in manifest["documents"]]
+        corpus = [{**item, "checksum_valid": sha256((self.document_root / item["filename"]).read_bytes()).hexdigest() == item["sha256"]} for item in manifest["documents"]]
+        return corpus + [{**item, "owner": "Uploader: " + item["uploaded_by"], "effective_date": None, "checksum_valid": True} for item in self.document_repository.listing()]
+
+    def mutate_document(self, action, revision_id, body, session):
+        if session["role"] not in (ApproverRole.ENGINEERING_REVIEWER.value, ApproverRole.QUALITY_ENGINEER.value):
+            raise ApplicationError(403, "ROLE_NOT_PERMITTED", "Hanya Engineering atau Quality dapat mengubah dokumen bukti.")
+        repository = self.document_repository
+        if action == "upload":
+            import base64
+            content = base64.b64decode(body.get("content_base64", ""), validate=True)
+            return repository.upload(body, content, session["user_id"])
+        if action == "extract":
+            if body.get("consent_openai") is not True:
+                raise ApplicationError(422, "LLM_CONSENT_REQUIRED", "Konfirmasi pengiriman teks PDF ke OpenAI dan potensi biaya terlebih dahulu.")
+            if not self._llm_slot.acquire(blocking=False):
+                raise ApplicationError(429, "LLM_BUSY", "Permintaan AI lain masih berjalan.")
+            try:
+                self.llm_settings.require_configured()
+                return repository.extract(revision_id, self.llm_client)
+            except ModelError as error:
+                raise ApplicationError(502, error.code, "Ekstraksi OpenAI gagal. Periksa konfigurasi/koneksi/kuota; tidak ada retry otomatis. Bukti lama tidak digantikan oleh output gagal.") from None
+            finally:
+                self._llm_slot.release()
+        if action == "review":
+            return repository.review(revision_id, body, session["user_id"])
+        if action == "activate":
+            return repository.activate(revision_id, body, session["user_id"])
+        raise KeyError(action)

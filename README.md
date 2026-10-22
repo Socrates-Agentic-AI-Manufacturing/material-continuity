@@ -45,7 +45,8 @@ the shared demo password with `MATERIAL_CONTINUITY_DEMO_PASSWORD` before launch
 if needed. Do not use a real enterprise password for this demo. The server binds
 only to `127.0.0.1`; HTTPS/SSO, public hosting and live enterprise connectors
 are not implemented. Optional OpenAI review setup is described below; the
-ordinary investigation workflow remains fixture-backed.
+ordinary investigation uses synthetic operational data plus explicitly activated,
+reviewed uploaded candidate evidence (prepared evidence otherwise).
 
 Optional launch settings:
 
@@ -66,16 +67,17 @@ The web application provides:
   QMS tasks with persistent receipts and duplicate blocking.
 - Re-investigation that preserves history and invalidates stale approvals when
   source state changes. Unchanged input does not create a new version.
-- Read-only Documents & Data with the 12-PDF corpus and checksum status.
+- Documents & Data: corpus browser, immutable PDF uploads/revisions, real page
+  text, explicit OpenAI extraction proposals, evidence review and activation.
 - Agent Workflow: n8n-like connected node viewer, zoom/pan, node inspector,
   accessible list mode and recorded-step replay. It is not a workflow editor.
 - Explicit cost-acknowledged OpenAI review with separately persisted advisory
   history; refreshing does not issue another model request.
 
 The canonical data retains September/October 2026 dates. Qualification dates are
-planned, not completed tests. Enterprise records, evidence extraction, and QMS
-actions remain synthetic/mock; document upload and actual runtime PDF extraction
-are pending. Scenario costs are displayed in fixture monetary units; no currency
+planned, not completed tests. Enterprise records and QMS actions remain synthetic/
+mock; uploaded PDFs are actually read at runtime. Scenario costs use fixture
+monetary units; no currency
 has been assumed.
 
 ## HTTP interface
@@ -98,6 +100,11 @@ login also require the returned `csrf_token` in `X-CSRF-Token`.
 | `POST /api/cases/{id}/approvals` | Approve an eligible candidate/requirement test |
 | `POST /api/cases/{id}/qualification-tasks` | Execute the exact server-stored approval scope |
 | `GET /api/documents` / `GET /documents/{filename}` | Corpus metadata / allowlisted PDF content |
+| `POST /api/documents` | Store candidate/document/revision, filename and base64 PDF; local page extraction |
+| `GET /api/document-revisions/{id}` | Immutable source identity, pages, proposals and review |
+| `POST /api/document-revisions/{id}/extract` | Explicit OpenAI proposal, requires `consent_openai: true` |
+| `POST /api/document-revisions/{id}/review` | Bind selected `accepted_rows` to `extraction_hash`, requires `confirm_scope: true` |
+| `POST /api/document-revisions/{id}/activate` | Compare `expected_active_revision_id` and require `confirm_invalidation: true` |
 
 Case mutations require the reviewed `case_version` and `case_hash`. Approvals also
 require `candidate_id` and `requirement_id`; task execution requires `approval_id`.
@@ -184,13 +191,57 @@ activation: the local provider is now `openai` and a browser-initiated review wa
 verified with 8 calls (30,372 input / 491 output tokens). The same result survived
 reload without another model call. These are smoke tests, not claims about
 ongoing quota, model reliability or deployed factory benefit. The example config
-still defaults to `fixtures` for new installations. Next: implement controlled
-document ingestion/extraction and ingestion-driven re-investigation.
+still defaults to `fixtures` for new installations. Candidate PDF extraction now
+uses this same transport in a separate explicit Evidence Specialist request.
+
+## Actual PDF revision demo (local, AWS not required)
+
+Install the optional parser if it is not already present in your Python runtime:
+
+```powershell
+python -m pip install "pypdf>=6.10,<7"
+```
+
+1. Login as Engineering or Quality, open Documents & Data, upload
+   `data/documents/Candidate_A_Datasheet_Rev2.pdf` as CAND-A / DS-CAND-A / revision 2.
+2. Inspect extracted page text. Explicitly consent to OpenAI extraction (text is
+   sent to OpenAI and may incur API charges). No startup/navigation/replay call.
+3. Inspect PDF identity, revision, quotations, values and applicability; accept
+   supported bore/load rows and save the evidence review. Missing lubricant
+   evidence stays UNKNOWN. Model proposals alone do not enter comparisons.
+4. Activate Rev2, open CASE-001 and Investigasi ulang. Review evidence, timing
+   and scenarios, approve a qualification task and create the mock QMS receipt.
+   Production release remains BLOCKED.
+5. Upload `data/demo/Candidate_A_Datasheet_Rev3.pdf` with the SAME candidate and
+   Document ID, revision 3. Activate it before or after extraction/review. Old
+   actions are blocked immediately, even while processing is pending or failed.
+6. Extract/review Rev3 and reinvestigate: actual PDF bore is 30 mm, so Candidate A
+   is hard-rejected, substitute coverage is blocked and old approvals stay stale.
+   Historical PDFs, case versions, approvals and receipts remain after restart.
+
+Draft upload does not change authority. One active revision per candidate/document
+slot is allowed. An active candidate dossier replaces prepared candidate technical
+evidence, not synthetic QMS release records. Rejected/unselected/absent claims
+remain UNKNOWN. Review selections are immutable; corrections require a new
+revision. Successful extraction is retained per immutable source with parser/
+extractor/model/cache identity; reopening or repeating extraction reuses it.
+
+Limits: 2 MB/PDF, 20 pages, 80k text characters, 15-second parser subprocess,
+100 local revisions/20 MB stored bytes. Scanned, partly unreadable, encrypted and
+malformed documents fail explicitly. The parser is not OCR or a hardened public
+file-upload sandbox. Candidate bore/load/lubricant evidence is in scope; internal
+requirements, SOP mapping/calendars and enterprise data remain prepared fixtures.
+No internet retrieval/scheduler or AWS service is invoked.
+
+The separate Rev3 fixture can be rebuilt with the existing build-time ReportLab
+utility: `python scripts/generate_revision_demo.py`. It does not edit Rev2 or the
+canonical JSON fixtures. Automated PDF acceptance uses real PDF parsing and fake
+model responses; live extraction is verified separately, not part of the suite.
 
 Offline frontend tests (Node.js, no packages):
 
 ```powershell
-node --test tests/web/workflow.test.cjs
+node --test tests/web/*.test.cjs
 ```
 
 ## Run the canonical exposure scenario

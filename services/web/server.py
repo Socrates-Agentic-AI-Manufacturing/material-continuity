@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlsplit
 from core.case_state.serialization import canonicalize
 
 from .application import ApplicationError
+from services.documents.parser import DocumentError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -45,6 +46,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.route(mutation)
         except ApplicationError as error:
             self.json_response(error.status, {"error": {"code": error.code, "message": error.message, "details": error.details}})
+        except DocumentError as error:
+            self.json_response(422, {"error": {"code": str(error), "message": "Dokumen belum dapat diproses: " + str(error) + ". Periksa PDF/revisi dan muat ulang detail."}})
         except KeyError:
             self.json_response(404, {"error": {"code": "NOT_FOUND", "message": "Kasus atau resource tidak ditemukan."}})
         except (ValueError, TypeError):
@@ -68,15 +71,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
         cookie.load(self.headers.get("Cookie", ""))
         return cookie["mc_session"].value if "mc_session" in cookie else ""
 
-    def body(self, allowed):
+    def body(self, allowed, maximum=MAX_BODY):
         if self.headers.get_content_type() != "application/json":
             raise ApplicationError(415, "JSON_REQUIRED", "Request harus berupa JSON.")
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             raise ApplicationError(400, "INVALID_LENGTH", "Ukuran request tidak valid.") from None
-        if not 0 < length <= MAX_BODY:
-            raise ApplicationError(413, "INVALID_BODY_SIZE", "Request kosong atau melebihi batas 16 KB.")
+        if not 0 < length <= maximum:
+            raise ApplicationError(413, "INVALID_BODY_SIZE", "Request kosong atau melebihi batas ukuran yang diizinkan.")
         try:
             value = json.loads(self.rfile.read(length))
         except (ValueError, UnicodeError):
@@ -110,7 +113,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif path == "/api/cases":
                 self.json_response(200, {"cases": app.list_cases()})
             elif path == "/api/documents":
-                self.json_response(200, {"documents": app.documents(), "mode": "synthetic", "upload_available": False})
+                self.json_response(200, {"documents": app.documents(), "revisions": app.document_repository.listing(), "mode": "synthetic-enterprise-data", "upload_available": True})
+            elif path.startswith("/api/document-revisions/"):
+                revision_id = path.removeprefix("/api/document-revisions/")
+                self.json_response(200, app.document_repository.detail(revision_id))
             elif path.startswith("/api/cases/"):
                 parts = path.strip("/").split("/")
                 if len(parts) not in (3, 4):
@@ -127,6 +133,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.json_response(200, response)
             elif path.startswith("/documents/"):
                 name = path.removeprefix("/documents/")
+                if name.startswith("PDF-") and name.endswith(".pdf") and "/" not in name:
+                    payload = app.document_repository.content(name[:-4])
+                    self.response_headers(200, "application/pdf", len(payload))
+                    self.wfile.write(payload)
+                    return
                 known = {row["filename"] for row in app.documents()}
                 if name not in known:
                     raise ApplicationError(404, "DOCUMENT_NOT_FOUND", "Dokumen tidak ditemukan.")
@@ -142,6 +153,20 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.body(())
             app.logout(self.token())
             self.json_response(200, {"logged_out": True}, cookie="mc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+            return
+        if path == "/api/documents":
+            result = app.mutate_document("upload", None, self.body(("candidate_id", "document_id", "revision", "filename", "content_base64"), 2_900_000), session)
+            self.json_response(201, result)
+            return
+        if path.startswith("/api/document-revisions/"):
+            parts = path.strip("/").split("/")
+            if len(parts) != 4:
+                raise KeyError(path)
+            allowed = {"extract": ("consent_openai",), "review": ("extraction_hash", "accepted_rows", "confirm_scope"), "activate": ("expected_active_revision_id", "confirm_invalidation")}
+            if parts[3] not in allowed:
+                raise KeyError(path)
+            result = app.mutate_document(parts[3], parts[2], self.body(allowed[parts[3]]), session)
+            self.json_response(200, result)
             return
         parts = path.strip("/").split("/")
         if len(parts) != 4 or parts[:2] != ["api", "cases"]:

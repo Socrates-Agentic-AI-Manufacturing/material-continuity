@@ -28,7 +28,7 @@ HTTP demo; production deployment/auth/provider choices remain open.
 - Three main navigation entries: Overview, Recovery Cases, Documents & Data.
 - Case detail groups Summary/Options, Agent Workflow, Evidence Review, Scenarios, Approval/Actions.
 - Evidence gaps remain UNKNOWN; hard mismatches reject; production release needs humans.
-- The dataset is synthetic and QMS writes are mock. Explicit optional OpenAI review is live-verified; PDF extraction and live document retrieval are not implemented.
+- Operational data is synthetic and QMS writes are mock. Explicit optional OpenAI review is live-verified. Uploaded candidate PDFs are parsed per page; OpenAI evidence proposals require reviewer acceptance and explicit active-revision selection before deterministic comparison. No OCR, supplier internet retrieval or AWS deployment.
 - The user requested an n8n-like interactive workflow viewer: node inspection and replay, not editing executable workflow or authorization rules.
 - Distinguish the grouped local case map from the actual recorded OpenAI tool order. Replay never invokes tools or consumes API credits.
 - Approval identity and role come from server sessions; domain calculations stay on the server.

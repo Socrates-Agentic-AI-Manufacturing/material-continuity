@@ -64,6 +64,12 @@ details { margin: 12px 0; }
 summary { cursor: pointer; min-height: 36px; font-weight: 600; }
 code { font-size: 13px; overflow-wrap: anywhere; }
 .source { display: block; margin-bottom: 10px; }
+.document-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; padding: 16px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+.document-check { display: flex; align-items: start; gap: 10px; font-weight: 400; }
+.document-check input { width: 20px; min-height: 20px; flex: 0 0 20px; margin: 3px 0; accent-color: var(--accent); }
+.document-detail { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+.evidence-proposal { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.evidence-proposal blockquote { margin: 8px 0; padding: 8px 12px; background: var(--surface); overflow-wrap: anywhere; }
 .skip { position: fixed; left: 16px; top: -100px; background: white; padding: 10px; z-index: 2; }
 .skip:focus { top: 12px; }
 :focus-visible { outline: 3px solid #ae4c05; outline-offset: 3px; }

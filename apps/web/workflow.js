@@ -53,8 +53,8 @@
       {id:'trigger', title:'Gangguan material', owner:'Event', kind:'trigger', subtitle:facts.trigger.trigger_type,
         status:'RECORDED', explanation:'Pemicu kasus ini berasal dari fixture enterprise sintetis; belum ada event SAP/AWS langsung.', context, output:facts.trigger},
       core('getExposure'), core('findRecoveryOptions'),
-      {id:'evidence', title:'Evidence Specialist', owner:'Lokal / fixture', kind:'evidence', subtitle:facts.candidate_comparisons.length + ' kandidat direview',
-        status:ran('EvidenceSpecialist') ? 'RECORDED' : 'NOT_RUN', explanation:'Workflow lokal memetakan evidence yang sudah disiapkan ke requirement. Hard mismatch ditolak; bukti hilang tetap UNKNOWN.', context,
+      {id:'evidence', title:'Evidence Specialist', owner:'Lokal / evidence', kind:'evidence', subtitle:facts.candidate_comparisons.length + ' kandidat direview',
+        status:ran('EvidenceSpecialist') ? 'RECORDED' : 'NOT_RUN', explanation:'Workflow lokal memetakan prepared evidence atau hasil PDF aktif yang telah direview ke requirement. Ekstraksi OpenAI terpisah di Documents & Data. Hard mismatch ditolak; bukti hilang tetap UNKNOWN.', context,
         output:{candidate_comparisons:facts.candidate_comparisons, trace:trace.filter(step=>step.tool==='EvidenceSpecialist')}},
       core('getQualificationDependencies', {output:facts.qualification_graphs}), core('simulateRecovery'),
       {id:'case', title:'Simpan versi kasus', owner:'Code', kind:'case', subtitle:'Versi ' + facts.case_version,
@@ -193,7 +193,7 @@
       el('flow-source').value = mode;
       el('flow-caption').textContent = mode === 'ai'
         ? 'Jejak OpenAI yang benar-benar selesai. Urutan mengikuti tool calls model; hasil memakai snapshot saat review, bukan bukti PDF baru.'
-        : 'Peta tahap kasus yang dikelompokkan, bukan urutan tool call individual. Evidence masih fixture; approval dan QMS adalah catatan tahap terpisah dengan human gate.';
+        : 'Peta tahap kasus yang dikelompokkan, bukan urutan tool call individual. Evidence mengikuti sumber aktif; approval dan QMS adalah catatan tahap terpisah dengan human gate.';
       const height = 202 * Math.ceil(nodes.length/3) + 12;
       const edges = nodes.slice(1).map((node,i) => {
         const before = nodes[i];

@@ -39,6 +39,19 @@ class Store:
                     case_id TEXT NOT NULL, payload TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ai_reviews_case ON ai_reviews(case_id, review_id DESC);
+                CREATE TABLE IF NOT EXISTS document_revisions (
+                    revision_id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL,
+                    document_id TEXT NOT NULL, revision TEXT NOT NULL,
+                    sha256 TEXT NOT NULL, original_name TEXT NOT NULL,
+                    content BLOB NOT NULL, payload TEXT NOT NULL,
+                    UNIQUE(candidate_id, document_id, revision)
+                );
+                CREATE TABLE IF NOT EXISTS active_documents (
+                    candidate_id TEXT NOT NULL, document_id TEXT NOT NULL,
+                    revision_id TEXT NOT NULL, activated_by TEXT NOT NULL,
+                    activated_at TEXT NOT NULL,
+                    PRIMARY KEY(candidate_id, document_id)
+                );
             """)
 
     @contextmanager
