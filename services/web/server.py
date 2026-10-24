@@ -22,10 +22,11 @@ MAX_BODY = 16_384
 class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, app, web_root=WEB_ROOT):
-        if address[0] not in ("127.0.0.1", "localhost"):
-            raise ValueError("this demo server only supports localhost binding")
+    def __init__(self, address, app, web_root=WEB_ROOT, allowed_hosts=()):
+        if address[0] not in ("127.0.0.1", "localhost", "0.0.0.0"):
+            raise ValueError("unsupported bind address")
         self.app, self.web_root = app, web_root
+        self.allowed_hosts = set(allowed_hosts)
         super().__init__(address, ReviewHandler)
 
 
@@ -58,10 +59,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     def check_origin(self):
         port = self.server.server_port
-        allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+        allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"} | self.server.allowed_hosts
         host = self.headers.get("Host", "")
         if host not in allowed_hosts:
-            raise ApplicationError(403, "INVALID_HOST", "Gunakan alamat localhost aplikasi ini.")
+            raise ApplicationError(403, "INVALID_HOST", "Host aplikasi belum dikonfigurasi untuk deployment ini.")
         origin = self.headers.get("Origin")
         if origin and origin != f"http://{host}":
             raise ApplicationError(403, "INVALID_ORIGIN", "Request lintas origin tidak diperbolehkan.")

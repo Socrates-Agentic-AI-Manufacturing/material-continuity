@@ -1,0 +1,10 @@
+applications:
+  - name: material-continuity-antek2-rl
+    memory: 256M
+    instances: 1
+    command: python -m services.web --host 0.0.0.0 --port $PORT
+    health-check-type: port
+    env:
+      MATERIAL_CONTINUITY_ALLOWED_HOSTS: material-continuity-antek2-rl.cfapps.ap10.hana.ondemand.com
+    buildpacks:
+      - python_buildpack

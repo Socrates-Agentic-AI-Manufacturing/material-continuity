@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from decimal import Decimal
-from enum import StrEnum
+from core.compat import StrEnum
 from typing import Any
 
 ScalarValue = Decimal | str | bool

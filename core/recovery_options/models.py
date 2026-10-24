@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import date
-from enum import StrEnum
+from core.compat import StrEnum
 from typing import Any
 
 

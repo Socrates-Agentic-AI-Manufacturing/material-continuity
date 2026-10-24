@@ -222,12 +222,12 @@ class Application:
             return result
         except ModelError as error:
             messages = {
-                "LLM_NOT_CONFIGURED": "OpenAI belum dikonfigurasi. Periksa provider, API key dan model di backend.",
-                "LLM_AUTH_FAILED": "OpenAI menolak API key. Periksa key di backend; jangan kirim lewat chat.",
-                "LLM_ACCESS_DENIED": "Akun OpenAI tidak memiliki akses yang diminta. Periksa akses model/project.",
-                "LLM_RATE_OR_QUOTA_LIMIT": "Batas permintaan atau kuota OpenAI tercapai. Tidak ada retry otomatis.",
-                "LLM_TIMEOUT": "OpenAI belum merespons dalam batas waktu. Review tidak disimpan.",
-                "LLM_NETWORK_ERROR": "Backend tidak dapat terhubung ke OpenAI. Periksa koneksi jaringan.",
+                "LLM_NOT_CONFIGURED": "Provider AI belum dikonfigurasi. Periksa provider, credential, dan model di backend.",
+                "LLM_AUTH_FAILED": "Provider AI menolak credential. Periksa credential di backend; jangan kirim lewat chat.",
+                "LLM_ACCESS_DENIED": "Akun/provider AI tidak memiliki akses model yang diminta.",
+                "LLM_RATE_OR_QUOTA_LIMIT": "Batas permintaan atau kuota provider AI tercapai. Tidak ada retry otomatis.",
+                "LLM_TIMEOUT": "Provider AI belum merespons dalam batas waktu. Review tidak disimpan.",
+                "LLM_NETWORK_ERROR": "Backend tidak dapat terhubung ke provider AI. Periksa koneksi jaringan.",
             }
             status = 503 if error.code == "LLM_NOT_CONFIGURED" else 429 if error.code == "LLM_RATE_OR_QUOTA_LIMIT" else 504 if error.code == "LLM_TIMEOUT" else 502
             raise ApplicationError(status, error.code, messages.get(error.code, "Review AI dihentikan karena respons tidak valid atau batas investigasi tercapai. Kasus dan approval tidak diubah.")) from None

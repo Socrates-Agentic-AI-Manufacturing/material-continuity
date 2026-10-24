@@ -3271,3 +3271,106 @@ account access was deferred. The local frontend/backend/database choices
 are recorded in ADR-007; public deployment choices and sync cadence remain open.
 `CHATGPT_HANDOFF_2026-10-13.md` is the planning snapshot from before this functional
 web implementation. Use this tracker and latest session log for current progress.
+
+---
+
+# 46. Current Integration Context — 2026-10-24
+
+This section is the current handoff for agents joining after the SAP BTP setup.
+
+## Current local state
+
+The repository contains a working local web MVP, deterministic recovery engines,
+fixture-backed enterprise data, local SQLite persistence, PDF upload/revision and
+evidence review, a mock QMS action adapter, and an optional model-provider layer.
+The local app is started with `python -m services.web` and defaults to the
+`fixtures` provider. Fixtures are synthetic JSON records used to run the demo
+without SAP or AWS; they are not live enterprise data. They include stock,
+production orders, BOMs, purchase-order receipts, candidate availability,
+requirements, evidence, qualification calendars, and recovery scenarios.
+
+The user has a SAP BTP hackathon account with Cloud Foundry org
+`SEAIO_aws-sap-hackathon-si4ykj9d` and team space `hackathon-antek2-rl`.
+The organizer instructions expose SAP AI Core Generative AI Hub deployments:
+
+```text
+gpt-5.4          deployment d1a82575de60e02a
+sap-rpt-1.6      deployment d76cf689a05d504f
+orchestration    deployment d8c092efb8980093
+resource group   default
+```
+
+The repository now contains `services/llm/sap_ai_core.py`, a provider adapter
+that reads credentials only from the ignored `.env.local` or process environment.
+It obtains an OAuth client-credentials token and calls SAP AI Core chat
+completion. The adapter translates SAP chat tool calls to the internal
+Responses-shaped contract used by `agents/recovery_supervisor/openai_review.py`.
+The provider can be selected with:
+
+```dotenv
+MATERIAL_CONTINUITY_LLM_PROVIDER=sap_ai_core
+SAP_AI_CORE_CLIENT_ID=...
+SAP_AI_CORE_CLIENT_SECRET=...
+SAP_AI_CORE_TOKEN_URL=...
+SAP_AI_CORE_API_URL=...
+SAP_AI_CORE_DEPLOYMENT_ID=d1a82575de60e02a
+SAP_AI_CORE_RESOURCE_GROUP=default
+```
+
+The current `.env.local` is intentionally a local template with the two secret
+fields blank. Never commit or paste AI Core/Joule client secrets. Secrets pasted
+into chat must be rotated by the organizer before use. `python -m services.llm`
+checks configuration only; it does not verify network/model access.
+
+## Current provider boundaries
+
+SAP AI Core is an AI inference provider, not SAP S/4HANA/MES business data.
+The BTP instructions do not provide stock, BOM, production-order, purchase-order,
+supplier, or quality-management API access. Those still come from local fixtures.
+Joule credentials/capability deployment are also separate and Joule is not yet
+connected to the web backend. AWS services in the proposal remain unconnected:
+S3, Bedrock Knowledge Base, Bedrock model, Lambda, EventBridge, AgentCore
+Runtime/Gateway, CloudWatch, and IAM deployment are still pending.
+
+## Intended target state
+
+The target integration should evolve in this order:
+
+```text
+fixture provider → SAP AI Core advisory → Cloud Foundry web deployment
+→ Joule capability calling backend → SAP read-only data adapter
+→ S3/Knowledge Base retrieval → AWS/Lambda/EventBridge/AgentCore as access permits
+→ carefully scoped SAP/QMS write-back after approval controls are proven
+```
+
+The deterministic core must remain provider-independent. New adapters should
+implement a boundary around existing models and engines rather than moving
+arithmetic or authorization into an LLM.
+
+## Known AI review failure
+
+The web message `Review AI dihentikan karena respons tidak valid atau batas
+investigasi tercapai` is a safe generic fallback. It can mean either that the
+model returned a shape the review contract rejected, or that the bounded review
+reached `MAX_CALLS = 12` or `MAX_RUN_SECONDS = 90`. The case, approvals, and
+actions are deliberately unchanged and there is no automatic retry.
+
+Before the SAP adapter update, this happened because the review engine expected
+OpenAI Responses-style `output` function calls while SAP AI Core returns
+OpenAI-compatible chat-completions (`choices[].message.tool_calls`). The SAP
+adapter now sends the allowed tools and translates chat messages/tool calls into
+the internal shape. If the error persists, inspect the backend terminal for the
+provider code and check that the deployment supports tool calling, the token is
+valid, the model is accessible in resource group `default`, and the full review
+can complete within the call/time limits.
+
+## Next work items
+
+1. Rotate exposed BTP service keys and fill `.env.local` locally.
+2. Run `python -m services.llm`; then test one explicit AI review from the web.
+3. Add unit tests with a fake SAP token and chat-completion tool-call response.
+4. Deploy the local web app to the Cloud Foundry team space.
+5. Create a Joule capability that calls the deployed backend read-only endpoints.
+6. Obtain separate SAP S/4HANA/MES API details before implementing a SAP data adapter.
+7. Add S3 and Knowledge Base adapters only after document provenance is defined.
+8. Keep all write-back actions behind the existing version/hash/role/expiry/idempotency gate.

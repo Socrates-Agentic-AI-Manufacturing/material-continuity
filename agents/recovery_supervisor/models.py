@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from enum import StrEnum
+from core.compat import StrEnum
 
 from agents.evidence_specialist import EvidenceSpecialistResult
 from core.case_state import RecoveryCase, TriggerType

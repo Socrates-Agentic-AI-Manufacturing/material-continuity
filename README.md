@@ -24,7 +24,7 @@ reviewed.
 
 ## Requirements
 
-- Python 3.11 or newer
+- Python 3.10 or newer
 - No third-party packages are required for the current slice
 
 ## Run the functional web MVP

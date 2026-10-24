@@ -123,7 +123,7 @@ def run_openai_review(version, client, *, clock=monotonic):
             trace.append({"sequence": len(trace) + 1, "tool": name, "target": version.case_id})
             return {
                 "case_id": version.case_id, "case_version": version.case_version, "case_hash": version.case_hash,
-                "provider": "openai", "model": client.settings.model,
+                "provider": client.settings.provider, "model": client.settings.model,
                 "advisory_only": True, "human_review_required": True, "production_release_authorized": False,
                 "data_mode": "SYNTHETIC_FIXTURES", "pdf_extraction": False,
                 "review": args, "tool_trace": trace, "usage": usage,

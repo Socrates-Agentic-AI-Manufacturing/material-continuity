@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
+from core.compat import StrEnum
 
 from core.approval import ApprovalGateDecision, ApprovalValidationRequest
 from core.case_state import ActionReceipt, RecoveryCase
