@@ -1,0 +1,7 @@
+description: >
+  Check whether a material shortage is projected and explain affected
+  production exposure. Use this for questions about shortage, stock exposure,
+  affected orders, or production impact.
+target:
+  type: function
+  name: check_exposure

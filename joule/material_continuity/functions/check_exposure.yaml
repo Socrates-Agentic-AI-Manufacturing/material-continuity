@@ -1,0 +1,21 @@
+action_groups:
+  - actions:
+      - type: api-request
+        method: GET
+        system_alias: MATERIAL_CONTINUITY_API
+        path: /api/joule/exposure
+        result_variable: exposure_result
+      - type: message
+        message:
+          type: text
+          markdown: true
+          content: >-
+            <? "Material exposure: " + exposure_result.body.cases[0].material_id
+            + ". Shortage date: " + exposure_result.body.cases[0].shortage_date
+            + ". Exposed quantity: " + exposure_result.body.cases[0].exposed_quantity
+            + ". Affected orders: " + exposure_result.body.cases[0].exposed_order_count ?>
+result:
+  material_id: <? exposure_result.body.cases[0].material_id ?>
+  shortage_date: <? exposure_result.body.cases[0].shortage_date ?>
+  exposed_quantity: <? exposure_result.body.cases[0].exposed_quantity ?>
+  exposed_order_count: <? exposure_result.body.cases[0].exposed_order_count ?>

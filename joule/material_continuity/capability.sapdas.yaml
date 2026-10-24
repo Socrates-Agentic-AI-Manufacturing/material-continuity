@@ -1,0 +1,10 @@
+schema_version: 3.28.0
+metadata:
+  namespace: joule.ext
+  name: material_continuity_capability
+  version: 1.0.0
+  display_name: "Material Continuity"
+  description: "Reads current synthetic material exposure and affected production orders."
+system_aliases:
+  MATERIAL_CONTINUITY_API:
+    destination: MATERIAL_CONTINUITY_API
