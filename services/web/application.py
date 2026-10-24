@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import secrets
 import threading
+import logging
 
 from agents.recovery_supervisor import RecoverySupervisorRequest, run_recovery_workflow
 from agents.recovery_supervisor.openai_review import run_openai_review
@@ -37,6 +38,9 @@ class ApplicationError(Exception):
     def __init__(self, status, code, message, details=None):
         self.status, self.code, self.message, self.details = status, code, message, details
         super().__init__(message)
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Application:
@@ -221,6 +225,7 @@ class Application:
             result["is_current"] = True
             return result
         except ModelError as error:
+            LOGGER.warning("AI review stopped: provider=%s code=%s", self.llm_settings.provider, error.code)
             messages = {
                 "LLM_NOT_CONFIGURED": "Provider AI belum dikonfigurasi. Periksa provider, credential, dan model di backend.",
                 "LLM_AUTH_FAILED": "Provider AI menolak credential. Periksa credential di backend; jangan kirim lewat chat.",

@@ -64,7 +64,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if host not in allowed_hosts:
             raise ApplicationError(403, "INVALID_HOST", "Host aplikasi belum dikonfigurasi untuk deployment ini.")
         origin = self.headers.get("Origin")
-        if origin and origin != f"http://{host}":
+        allowed_origins = {f"http://{host}", f"https://{host}"}
+        if origin and origin not in allowed_origins:
             raise ApplicationError(403, "INVALID_ORIGIN", "Request lintas origin tidak diperbolehkan.")
 
     def token(self):
