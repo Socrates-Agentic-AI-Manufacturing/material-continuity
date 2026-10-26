@@ -1,0 +1,17 @@
+action_groups:
+  - actions:
+      - type: api-request
+        method: GET
+        system_alias: MATERIAL_CONTINUITY_API
+        path: /api/joule/case/CASE-001
+        result_variable: case_result
+      - type: message
+        message:
+          type: text
+          markdown: true
+          content: >-
+            <? "Recovery options are available for " + case_result.body.case_id
+            + ". Review the options and their feasibility in the Material Continuity web app before approval." ?>
+result:
+  case_id: <? case_result.body.case_id ?>
+  recovery_options: <? case_result.body.recovery_options ?>

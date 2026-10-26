@@ -1,0 +1,17 @@
+action_groups:
+  - actions:
+      - type: api-request
+        method: GET
+        system_alias: MATERIAL_CONTINUITY_API
+        path: /api/joule/case/CASE-001
+        result_variable: case_result
+      - type: message
+        message:
+          type: text
+          markdown: true
+          content: >-
+            <? "Approval records for " + case_result.body.case_id + ": "
+            + case_result.body.approvals ?>
+result:
+  case_id: <? case_result.body.case_id ?>
+  approvals: <? case_result.body.approvals ?>

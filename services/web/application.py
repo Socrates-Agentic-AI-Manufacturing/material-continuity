@@ -139,6 +139,28 @@ class Application:
             "updated_at": case.updated_at,
         } for case in cases]
 
+    def joule_case(self, case_id="CASE-001"):
+        """Return a redacted, read-only case briefing for Joule."""
+        with self.store.transaction() as db:
+            case = self.store.get_case(db, case_id)
+            review_row = db.execute(
+                "SELECT payload FROM ai_reviews WHERE case_id=? ORDER BY review_id DESC LIMIT 1",
+                (case_id,),
+            ).fetchone()
+        return {
+            "case_id": case.case_id,
+            "case_version": case.current.case_version,
+            "status": case.current.status,
+            "material_id": case.current.exposure.material_id,
+            "shortage_date": case.current.exposure.shortage_date,
+            "exposed_quantity": case.current.simulation.baseline_exposed_quantity,
+            "affected_order_count": case.current.simulation.baseline_exposed_order_count,
+            "recovery_options": canonicalize(case.current.recovery_options),
+            "latest_ai_review": json.loads(review_row["payload"]) if review_row else None,
+            "approvals": canonicalize(case.approvals),
+            "data_mode": "SYNTHETIC_FIXTURES",
+        }
+
     def case_view(self, case_id, session):
         with self.store.transaction() as db:
             case = self.store.get_case(db, case_id)

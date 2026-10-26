@@ -122,6 +122,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 "message": "No active material exposure cases." if not cases else "Active material exposure cases available.",
             })
             return
+        if not mutation and path.startswith("/api/joule/case"):
+            expected_user = os.environ.get("MATERIAL_CONTINUITY_JOULE_USER", "")
+            expected_password = os.environ.get("MATERIAL_CONTINUITY_JOULE_PASSWORD", "")
+            expected = "Basic " + base64.b64encode(f"{expected_user}:{expected_password}".encode()).decode()
+            if not expected_user or not expected_password or self.headers.get("Authorization", "") != expected:
+                self.send_response(401); self.send_header("WWW-Authenticate", "Basic realm=material-continuity"); self.end_headers(); return
+            case_id = unquote(path.rsplit("/", 1)[-1]) if path.count("/") > 3 else "CASE-001"
+            self.json_response(200, app.joule_case(case_id))
+            return
         if mutation and path == "/api/login":
             body = self.body(("username", "password"))
             if not all(isinstance(body.get(name), str) for name in ("username", "password")):

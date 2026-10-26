@@ -1,0 +1,3 @@
+description: Show the approval records and current approval status for the current material continuity case.
+target:
+  function: approval_status

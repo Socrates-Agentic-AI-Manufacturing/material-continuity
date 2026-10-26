@@ -1,0 +1,22 @@
+action_groups:
+  - actions:
+      - type: api-request
+        method: GET
+        system_alias: MATERIAL_CONTINUITY_API
+        path: /api/joule/case/CASE-001
+        result_variable: case_result
+      - type: message
+        message:
+          type: text
+          markdown: true
+          content: >-
+            <? "Case " + case_result.body.case_id + ": material " + case_result.body.material_id
+            + ", shortage date " + case_result.body.shortage_date + ", exposed quantity "
+            + case_result.body.exposed_quantity + ", affected orders " + case_result.body.affected_order_count ?>
+result:
+  case_id: <? case_result.body.case_id ?>
+  status: <? case_result.body.status ?>
+  material_id: <? case_result.body.material_id ?>
+  shortage_date: <? case_result.body.shortage_date ?>
+  exposed_quantity: <? case_result.body.exposed_quantity ?>
+  affected_order_count: <? case_result.body.affected_order_count ?>
