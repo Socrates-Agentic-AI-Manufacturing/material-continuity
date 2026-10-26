@@ -2,5 +2,4 @@ schema_version: 1.4.0
 name: material_continuity_capability
 capabilities:
   - type: local
-    name: material_continuity_capability
     folder: ./
