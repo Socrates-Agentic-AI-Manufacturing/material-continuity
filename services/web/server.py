@@ -107,7 +107,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.send_header("WWW-Authenticate", "Basic realm=material-continuity")
                 self.end_headers()
                 return
-            self.json_response(200, {"cases": app.list_cases(), "source": "local-synthetic"})
+            cases = app.list_cases()
+            self.json_response(200, {
+                "cases": cases,
+                "case_count": len(cases),
+                "source": "local-synthetic",
+                "message": "No active material exposure cases." if not cases else "Active material exposure cases available.",
+            })
             return
         if mutation and path == "/api/login":
             body = self.body(("username", "password"))
