@@ -120,9 +120,10 @@ async function route() {
 function showJoule() {
   content.innerHTML = `<h1>Joule Assistant</h1>
     <p>Joule memakai backend Material Continuity yang sama untuk membaca exposure dan status kasus.</p>
-    <p class="notice">Jika frame kosong, izinkan third-party cookies untuk domain SAP/Joule. URL standalone tetap tersedia sebagai fallback.</p>
-    <div class="joule-frame-wrap"><iframe class="joule-frame" src="${JOULE_URL}" title="Material Continuity Joule Assistant" allow="clipboard-read; clipboard-write"></iframe></div>
-    <p><a href="${JOULE_URL}" target="_blank" rel="noopener noreferrer">Buka Joule di tab baru</a></p>`;
+    <div class="panel"><h2>Joule tersedia di Web Client SAP</h2>
+      <p>Web Client Joule tidak dapat di-embed dari aplikasi ini karena Content Security Policy SAP hanya mengizinkan framing dari domainnya sendiri.</p>
+      <p class="notice">Gunakan tombol berikut untuk membuka sesi Joule di tab baru. Koneksi ke backend dan capability tetap sama.</p>
+      <p><a class="button-link" href="${JOULE_URL}" target="_blank" rel="noopener noreferrer">Buka Joule Web Client</a></p></div>`;
 }
 
 async function showDocuments(revisionId) {
