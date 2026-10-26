@@ -13,6 +13,7 @@ const badge = value => `<span class="badge ${escape(value)}">${escape(value)}</s
 const time = value => value ? new Intl.DateTimeFormat('id-ID', {dateStyle:'medium', timeStyle:'short', timeZone:'Asia/Jakarta'}).format(new Date(value)) + ' WIB' : 'Belum diketahui';
 const date = value => value || 'Belum diketahui';
 const table = (caption, headers, rows) => `<div class="table-scroll"><table><caption>${escape(caption)}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const JOULE_URL = 'https://aws-sap-hackathon-si4ykj9d.ap10.sapdas.cloud.sap/webclient/standalone/material_continuity_capability';
 
 function notify(message, error = false) {
   const node = document.querySelector('#message');
@@ -100,8 +101,9 @@ async function route() {
   if (workflowCleanup) { workflowCleanup(); workflowCleanup = null; }
   if (!session) { showLogin(); return; }
   const parts = (location.hash || '#overview').slice(1).split('/');
-  const section = ['overview','cases','documents'].includes(parts[0]) ? parts[0] : 'overview';
+  const section = ['overview','cases','documents','joule'].includes(parts[0]) ? parts[0] : 'overview';
   shell(section);
+  if (section === 'joule') return showJoule();
   if (section === 'documents') return showDocuments(parts[1]);
   if (section === 'cases' && parts[1]) return showCase(parts[1], parts[2] || 'summary');
   const data = await api('/api/cases');
@@ -113,6 +115,14 @@ async function route() {
       <td><a href="#cases/${encodeURIComponent(item.case_id)}/summary">${escape(item.case_id)}</a><small>Versi ${item.case_version}</small></td>
       <td>${escape(item.material_id)}</td><td>${escape(date(item.shortage_date))}</td>
       <td>${item.exposed_quantity} EA / ${item.exposed_order_count} orders</td><td>${badge(item.status)}</td><td>${time(item.updated_at)}</td></tr>`)) : '<p>Belum ada kasus. Periksa inisialisasi fixture di server.</p>'}`;
+}
+
+function showJoule() {
+  content.innerHTML = `<h1>Joule Assistant</h1>
+    <p>Joule memakai backend Material Continuity yang sama untuk membaca exposure dan status kasus.</p>
+    <p class="notice">Jika frame kosong, izinkan third-party cookies untuk domain SAP/Joule. URL standalone tetap tersedia sebagai fallback.</p>
+    <div class="joule-frame-wrap"><iframe class="joule-frame" src="${JOULE_URL}" title="Material Continuity Joule Assistant" allow="clipboard-read; clipboard-write"></iframe></div>
+    <p><a href="${JOULE_URL}" target="_blank" rel="noopener noreferrer">Buka Joule di tab baru</a></p>`;
 }
 
 async function showDocuments(revisionId) {
