@@ -22,6 +22,14 @@ These deterministic outputs can be assembled into immutable, hash-bound
 recovery-case versions with approvals and actions referencing the exact version
 reviewed.
 
+## Current integration boundary
+
+The deployed demo uses SAP AI Core for the optional Review AI flow and exposes a
+read-only Joule capability under `joule/material_continuity`. Operational and
+enterprise data are still synthetic fixtures; SAP write-back, AWS EventBridge,
+AWS Lambda, S3, and Amazon Bedrock are future integrations rather than current
+runtime dependencies. This keeps the demo repeatable and safe.
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -115,7 +123,7 @@ SQLite read/check/write transactions serialize action creation. A unique task ke
 prevents duplicate writes for the same case version/candidate/requirement,
 including parallel requests and multiple approvals for one target.
 
-## Optional OpenAI review and interactive workflow
+## Optional AI review and interactive workflow
 
 The user authorized OpenAI as an interim inference adapter while AWS access is
 unavailable. AWS remains the proposal target; this is not a cloud migration or
