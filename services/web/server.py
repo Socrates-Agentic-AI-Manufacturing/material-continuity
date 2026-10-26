@@ -108,9 +108,16 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             cases = app.list_cases()
+            first_case = cases[0] if cases else {}
             self.json_response(200, {
                 "cases": cases,
                 "case_count": len(cases),
+                "has_active_case": bool(cases),
+                "case_id": first_case.get("case_id"),
+                "material_id": first_case.get("material_id"),
+                "shortage_date": first_case.get("shortage_date"),
+                "exposed_quantity": first_case.get("exposed_quantity"),
+                "affected_order_count": first_case.get("exposed_order_count"),
                 "source": "local-synthetic",
                 "message": "No active material exposure cases." if not cases else "Active material exposure cases available.",
             })

@@ -10,12 +10,17 @@ action_groups:
           type: text
           markdown: true
           content: >-
-            <? exposure_result.body.case_count == 0
+            <? exposure_result.body.has_active_case == false
             ? "No active material exposure cases were found."
-            : "Material exposure: " + exposure_result.body.cases[0].material_id
-            + ". Shortage date: " + exposure_result.body.cases[0].shortage_date
-            + ". Exposed quantity: " + exposure_result.body.cases[0].exposed_quantity
-            + ". Affected orders: " + exposure_result.body.cases[0].exposed_order_count ?>
+            : "Material exposure: " + exposure_result.body.material_id
+            + ". Shortage date: " + exposure_result.body.shortage_date
+            + ". Exposed quantity: " + exposure_result.body.exposed_quantity
+            + ". Affected orders: " + exposure_result.body.affected_order_count ?>
 result:
-  case_count: <? exposure_result.body.case_count ?>
+  case_id: <? exposure_result.body.case_id ?>
+  has_active_case: <? exposure_result.body.has_active_case ?>
+  material_id: <? exposure_result.body.material_id ?>
+  shortage_date: <? exposure_result.body.shortage_date ?>
+  exposed_quantity: <? exposure_result.body.exposed_quantity ?>
+  affected_order_count: <? exposure_result.body.affected_order_count ?>
   message: <? exposure_result.body.message ?>
