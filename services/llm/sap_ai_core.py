@@ -29,6 +29,11 @@ class SAPAICoreSettings:
     timeout_seconds: float = 20
     max_output_tokens: int = 2048
 
+    @property
+    def model(self):
+        """Provider-neutral model label used by the review audit record."""
+        return self.deployment_id or None
+
     @classmethod
     def from_environment(cls, environ=None):
         env = os.environ if environ is None else environ
