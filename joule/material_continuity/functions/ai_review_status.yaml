@@ -1,0 +1,18 @@
+action_groups:
+  - actions:
+      - type: api-request
+        method: GET
+        system_alias: MATERIAL_CONTINUITY_API
+        path: /api/joule/case/CASE-001
+        result_variable: case_result
+      - type: message
+        message:
+          type: text
+          markdown: true
+          content: >-
+            <? case_result.body.ai_review_available
+            ? "The latest AI review is available for " + case_result.body.case_id + ". Open the Material Continuity case to inspect its advisory recommendation and evidence trace."
+            : "No AI review has been completed for " + case_result.body.case_id + " yet. Run Review AI from the case page first." ?>
+result:
+  case_id: <? case_result.body.case_id ?>
+  ai_review_available: <? case_result.body.ai_review_available ?>

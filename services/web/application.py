@@ -157,6 +157,7 @@ class Application:
             "affected_order_count": case.current.simulation.baseline_exposed_order_count,
             "recovery_options": canonicalize(case.current.recovery_options),
             "latest_ai_review": json.loads(review_row["payload"]) if review_row else None,
+            "ai_review_available": review_row is not None,
             "approvals": canonicalize(case.approvals),
             "data_mode": "SYNTHETIC_FIXTURES",
         }

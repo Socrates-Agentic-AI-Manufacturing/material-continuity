@@ -1,0 +1,4 @@
+description: Check whether the latest advisory AI review is available for the current material continuity case.
+target:
+  type: function
+  name: ai_review_status
