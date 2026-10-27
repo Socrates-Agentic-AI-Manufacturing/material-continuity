@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Iterable
@@ -13,6 +14,7 @@ from .models import (
     OrderImpact,
     RecoverySimulationResult,
     ScenarioInput,
+    ScenarioRankingGroup,
     ScenarioResult,
     ScenarioState,
     SimulationInputError,
@@ -25,7 +27,7 @@ def simulate_recovery(
     shortage_at: datetime | None,
     scenarios: Iterable[ScenarioInput],
 ) -> RecoverySimulationResult:
-    """Compare explicit recovery scenarios without ranking or authorizing them."""
+    """Compare and rank recovery scenarios without authorizing them."""
 
     scenario_list = tuple(scenarios)
     _validate_inputs(exposure, shortage_at, scenario_list)
@@ -37,7 +39,7 @@ def simulate_recovery(
     )
     baseline_quantity = sum(order.unserved_quantity for order in affected_orders)
 
-    results = tuple(
+    simulated = tuple(
         _simulate_scenario(
             scenario=scenario,
             affected_orders=affected_orders,
@@ -46,6 +48,7 @@ def simulate_recovery(
         )
         for scenario in scenario_list
     )
+    results = _rank_scenarios(simulated)
     return RecoverySimulationResult(
         material_id=exposure.material_id,
         shortage_at=shortage_at,
@@ -68,6 +71,9 @@ def _simulate_scenario(
             scenario_type=scenario.scenario_type,
             name=scenario.name,
             state=ScenarioState.NO_RECOVERY_REQUIRED,
+            rank=0,
+            ranking_group=ScenarioRankingGroup.NOT_ACTIONABLE,
+            rank_reason="Ranking pending.",
             ready_at=scenario.ready_at,
             qualification_complete=scenario.qualification_complete,
             ready_by_shortage=True,
@@ -139,6 +145,9 @@ def _simulate_scenario(
         scenario_type=scenario.scenario_type,
         name=scenario.name,
         state=state,
+        rank=0,
+        ranking_group=ScenarioRankingGroup.NOT_ACTIONABLE,
+        rank_reason="Ranking pending.",
         ready_at=scenario.ready_at,
         qualification_complete=scenario.qualification_complete,
         ready_by_shortage=ready_by_shortage,
@@ -153,6 +162,57 @@ def _simulate_scenario(
         authorized_for_execution=False,
         source_references=scenario.source_references,
     )
+
+
+def _rank_scenarios(results: tuple[ScenarioResult, ...]) -> tuple[ScenarioResult, ...]:
+    """Attach a stable rank using proposal criteria while retaining input order."""
+
+    state_priority = {
+        ScenarioState.NO_RECOVERY_REQUIRED: 0,
+        ScenarioState.FEASIBLE: 0,
+        ScenarioState.PARTIAL: 1,
+        ScenarioState.INFEASIBLE: 2,
+        ScenarioState.UNRESOLVED: 3,
+    }
+    ordered = sorted(
+        results,
+        key=lambda item: (
+            state_priority[item.state],
+            item.remaining_exposed_order_count,
+            item.ready_at is None,
+            item.ready_at.isoformat() if item.ready_at else "",
+            item.incremental_cost_cents,
+            item.scenario_id,
+        ),
+    )
+    ranks = {item.scenario_id: index for index, item in enumerate(ordered, 1)}
+    ranked = []
+    for item in results:
+        group = (
+            ScenarioRankingGroup.FEASIBLE
+            if item.state in (ScenarioState.FEASIBLE, ScenarioState.NO_RECOVERY_REQUIRED)
+            else ScenarioRankingGroup.CONDITIONAL
+            if item.state is ScenarioState.PARTIAL
+            else ScenarioRankingGroup.NOT_ACTIONABLE
+        )
+        readiness = (
+            "timing unresolved"
+            if item.ready_at is None
+            else "ready by shortage"
+            if item.ready_by_shortage
+            else f"ready {item.delay_after_shortage_hours} hours after shortage"
+        )
+        reason = (
+            f"{item.remaining_exposed_order_count} exposed orders remain; "
+            f"{readiness}; incremental cost {item.incremental_cost_cents / 100:.2f}."
+        )
+        ranked.append(replace(
+            item,
+            rank=ranks[item.scenario_id],
+            ranking_group=group,
+            rank_reason=reason,
+        ))
+    return tuple(ranked)
 
 
 def _validate_inputs(

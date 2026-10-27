@@ -1,7 +1,7 @@
 """Web fixture adapter: fingerprint sources and keep simulation tied to its graph."""
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from hashlib import sha256
 import json
@@ -17,13 +17,18 @@ from core.requirements import CandidateDecision
 from core.case_state.models import SourceVersion, SourceType
 from core.evidence import EvidenceExtraction
 from core.evidence.models import ExtractionSupportStatus
+from core.exposure import calculate_exposure
+from core.exposure.fixtures import load_exposure_fixtures
 
 
 class WebFixtureTools(FixtureRecoverySupervisorTools):
-    def __init__(self, fixture_root, document_root, document_state=()):
+    def __init__(self, fixture_root, document_root, document_state=(), purchase_order_overrides=()):
         super().__init__(fixture_root)
         self.document_root = document_root
         self.document_state = tuple(document_state)
+        self.purchase_order_overrides = {
+            item["po_id"]: dict(item) for item in purchase_order_overrides
+        }
         versions = {source.source_id: source.version for source in self.get_source_versions()}
         document_sources = {
             "Candidate_A_Datasheet_Rev2.pdf": "SRC-CAND-A-DATASHEET",
@@ -58,6 +63,40 @@ class WebFixtureTools(FixtureRecoverySupervisorTools):
             procedures=load_qualification_procedure_fixtures(fixture_root),
         )
 
+    def purchase_orders(self):
+        rows = json.loads((self._fixture_root / "purchase-orders" / "purchase_orders.json").read_text(encoding="utf-8"))
+        return tuple({
+            **row,
+            **({
+                "expected_delivery": self.purchase_order_overrides[row["po_id"]]["expected_delivery"],
+                "status": "DELAYED",
+                "injected": True,
+                "original_expected_delivery": row["expected_delivery"],
+            } if row["po_id"] in self.purchase_order_overrides else {
+                "injected": False,
+                "original_expected_delivery": row["expected_delivery"],
+            }),
+        } for row in rows)
+
+    def get_exposure(self, *, material_id: str, as_of: datetime):
+        material, boms, orders, receipts = load_exposure_fixtures(self._fixture_root, material_id)
+        overrides = self.purchase_order_overrides
+        receipts = tuple(
+            replace(
+                receipt,
+                expected_delivery=date.fromisoformat(overrides[receipt.po_id]["expected_delivery"]),
+                status="DELAYED",
+            ) if receipt.po_id in overrides else receipt
+            for receipt in receipts
+        )
+        return calculate_exposure(
+            material=material,
+            bom_items=boms,
+            production_orders=orders,
+            receipts=receipts,
+            as_of=as_of,
+        )
+
     def get_source_versions(self):
         # The entire small local dataset is a single consistent input boundary.
         # Conservatively invalidate approvals if any input changes; fine-grained
@@ -69,6 +108,8 @@ class WebFixtureTools(FixtureRecoverySupervisorTools):
         for path in paths:
             digest.update(path.name.encode())
             digest.update(path.read_bytes())
+        if self.purchase_order_overrides:
+            digest.update(json.dumps(self.purchase_order_overrides, sort_keys=True).encode())
         sources = tuple(
             replace(source, content_hash=digest.hexdigest())
             for source in super().get_source_versions()

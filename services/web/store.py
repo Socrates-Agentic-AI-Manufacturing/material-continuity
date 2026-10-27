@@ -39,6 +39,14 @@ class Store:
                     case_id TEXT NOT NULL, payload TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ai_reviews_case ON ai_reviews(case_id, review_id DESC);
+                CREATE TABLE IF NOT EXISTS purchase_order_overrides (
+                    po_id TEXT PRIMARY KEY, payload TEXT NOT NULL,
+                    updated_by TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS resequencing_approval_scopes (
+                    approval_id TEXT PRIMARY KEY, case_id TEXT NOT NULL,
+                    scenario_id TEXT NOT NULL, scenario_name TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS document_revisions (
                     revision_id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL,
                     document_id TEXT NOT NULL, revision TEXT NOT NULL,

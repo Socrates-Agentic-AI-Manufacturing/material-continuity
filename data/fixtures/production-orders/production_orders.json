@@ -88,5 +88,14 @@
     "due_date": "2026-10-10",
     "priority": 10,
     "status": "RELEASED"
+  },
+  {
+    "order_id": "MO-011",
+    "product_id": "ASSEMBLY-B",
+    "quantity": 100,
+    "scheduled_date": "2026-10-21",
+    "due_date": "2026-10-21",
+    "priority": 5,
+    "status": "RELEASED"
   }
 ]

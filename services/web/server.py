@@ -212,14 +212,27 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if action == "investigate":
             result = app.reinvestigate(case_id, self.body(("case_version", "case_hash")))
             self.json_response(200, result)
+        elif action == "delivery-delay":
+            result = app.inject_delivery_delay(
+                case_id,
+                self.body(("case_version", "case_hash", "po_id", "expected_delivery")),
+                session,
+            )
+            self.json_response(200, result)
         elif action == "ai-review":
             result = app.ai_review(case_id, self.body(("case_version", "case_hash")))
             self.json_response(200, result)
         elif action == "approvals":
             result = app.approve(case_id, self.body(("case_version", "case_hash", "candidate_id", "requirement_id")), session)
             self.json_response(201, result)
+        elif action == "resequencing-approvals":
+            result = app.approve_resequencing(case_id, self.body(("case_version", "case_hash", "scenario_id")), session)
+            self.json_response(201, result)
         elif action == "qualification-tasks":
             result = app.execute(case_id, self.body(("case_version", "case_hash", "approval_id")), session)
+            self.json_response(201, result)
+        elif action == "resequencing-actions":
+            result = app.execute_resequencing(case_id, self.body(("case_version", "case_hash", "approval_id")), session)
             self.json_response(201, result)
         else:
             raise ApplicationError(404, "NOT_FOUND", "Route tidak ditemukan.")

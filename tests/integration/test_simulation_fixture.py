@@ -8,7 +8,7 @@ from core.exposure import calculate_exposure
 from core.exposure.fixtures import load_exposure_fixtures
 from core.qualification import build_qualification_graph
 from core.qualification.fixtures import load_qualification_fixtures
-from core.simulation import ScenarioState, simulate_recovery
+from core.simulation import ScenarioRankingGroup, ScenarioState, simulate_recovery
 from core.simulation.fixtures import load_simulation_fixtures
 
 
@@ -47,6 +47,11 @@ class CanonicalSimulationFixtureTests(unittest.TestCase):
         self.assertEqual(0, expedite.remaining_exposed_quantity)
         self.assertEqual(ScenarioState.PARTIAL, resequence.state)
         self.assertEqual(500, resequence.remaining_exposed_quantity)
+        self.assertEqual(1, expedite.rank)
+        self.assertEqual(2, candidate.rank)
+        self.assertEqual(3, resequence.rank)
+        self.assertEqual(ScenarioRankingGroup.FEASIBLE, expedite.ranking_group)
+        self.assertEqual(ScenarioRankingGroup.CONDITIONAL, candidate.ranking_group)
         self.assertTrue(
             all(not scenario.authorized_for_execution for scenario in result.scenarios)
         )

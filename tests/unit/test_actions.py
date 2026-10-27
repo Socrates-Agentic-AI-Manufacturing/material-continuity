@@ -10,6 +10,8 @@ from core.actions import (
     ActionBlockReason,
     ActionExecutionStatus,
     CreateQualificationTaskCommand,
+    AuthorizeResequencingCommand,
+    authorize_resequencing,
     create_qualification_task,
 )
 from core.approval import (
@@ -186,6 +188,64 @@ class QualificationTaskActionTests(unittest.TestCase):
                 idempotency_key="case-001-create-qualification-cand-a-temp",
             ),
         )
+
+
+class ResequencingActionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        case = build_canonical_case(FIXTURE_ROOT, created_at=CREATED_AT)
+        approval = ApprovalRecord(
+            approval_id="APR-RESEQ-001",
+            case_id=case.case_id,
+            case_version=case.current.case_version,
+            case_hash=case.current.case_hash,
+            approver_id="planner-1",
+            approver_role=ApproverRole.PRODUCTION_PLANNER.value,
+            permitted_action=ControlledAction.AUTHORIZE_RESEQUENCING.value,
+            approved_at=CREATED_AT + timedelta(minutes=5),
+            expires_at=CREATED_AT + timedelta(hours=8),
+        )
+        self.case = append_approval(case, approval, updated_at=approval.approved_at)
+        self.approval = approval
+
+    def command(self, scenario_id="SCN-PRODUCTION-RESEQUENCING"):
+        return AuthorizeResequencingCommand(
+            scenario_id=scenario_id,
+            approval=ApprovalValidationRequest(
+                approval_id=self.approval.approval_id,
+                action=ControlledAction.AUTHORIZE_RESEQUENCING,
+                principal=AuthenticatedPrincipal(
+                    principal_id=self.approval.approver_id,
+                    role=ApproverRole.PRODUCTION_PLANNER,
+                ),
+                evaluated_at=CREATED_AT + timedelta(minutes=10),
+                current_source_versions=self.case.current.source_versions,
+                idempotency_key="case-001-resequencing-v1",
+            ),
+        )
+
+    def test_planner_authorization_creates_mock_receipt_without_release(self):
+        result = authorize_resequencing(self.case, self.command())
+
+        self.assertTrue(result.created)
+        self.assertRegex(result.authorization.authorization_id, r"^MES-RESEQ-[A-F0-9]{10}$")
+        self.assertEqual("SCN-PRODUCTION-RESEQUENCING", result.authorization.scenario_id)
+        self.assertEqual(ControlledAction.AUTHORIZE_RESEQUENCING.value, result.action_receipt.action_type)
+        self.assertFalse(result.production_release_authorized)
+        self.assertEqual(1, len(result.case.actions))
+
+    def test_duplicate_resequencing_authorization_is_blocked(self):
+        first = authorize_resequencing(self.case, self.command())
+        second = authorize_resequencing(first.case, self.command())
+
+        self.assertFalse(second.created)
+        self.assertIn(ApprovalBlockReason.DUPLICATE_ACTION, second.approval_decision.reasons)
+        self.assertEqual(1, len(second.case.actions))
+
+    def test_non_resequencing_scenario_is_rejected(self):
+        result = authorize_resequencing(self.case, self.command("SCN-ORIGINAL-EXPEDITE"))
+
+        self.assertFalse(result.created)
+        self.assertEqual((ActionBlockReason.WRONG_SCENARIO_TYPE,), result.block_reasons)
 
 
 if __name__ == "__main__":

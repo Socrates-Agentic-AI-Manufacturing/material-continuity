@@ -7,14 +7,18 @@ from hashlib import sha256
 from core.approval import ApprovalGateDecision, ControlledAction, validate_approval
 from core.case_state import ActionReceipt, RecoveryCase, append_action_receipt
 from core.requirements import CandidateDecision
+from core.simulation import ScenarioState, ScenarioType
 
 from .models import (
     ActionAdapterInputError,
     ActionBlockReason,
     ActionExecutionStatus,
     CreateQualificationTaskCommand,
+    AuthorizeResequencingCommand,
     QualificationTaskCreationResult,
     QualificationTaskRecord,
+    ResequencingAuthorizationRecord,
+    ResequencingAuthorizationResult,
 )
 
 
@@ -118,6 +122,103 @@ def create_qualification_task(
         task=task,
         action_receipt=receipt,
         block_reasons=(),
+        production_release_authorized=False,
+    )
+
+
+def authorize_resequencing(
+    case: RecoveryCase,
+    command: AuthorizeResequencingCommand,
+) -> ResequencingAuthorizationResult:
+    """Record one approval-gated mock authorization for a resequencing option."""
+
+    if command.approval.action is not ControlledAction.AUTHORIZE_RESEQUENCING:
+        raise ActionAdapterInputError(
+            "approval request action must be AUTHORIZE_RESEQUENCING"
+        )
+    if not command.scenario_id.strip():
+        raise ActionAdapterInputError("scenario_id is required")
+
+    decision = validate_approval(case, command.approval)
+    if not decision.authorized:
+        return _blocked_resequencing(
+            case, decision, (ActionBlockReason.APPROVAL_BLOCKED,)
+        )
+    scenario = next(
+        (
+            item
+            for item in case.current.simulation.scenarios
+            if item.scenario_id == command.scenario_id
+        ),
+        None,
+    )
+    if scenario is None:
+        return _blocked_resequencing(
+            case, decision, (ActionBlockReason.SCENARIO_NOT_FOUND,)
+        )
+    if scenario.scenario_type is not ScenarioType.PRODUCTION_RESEQUENCING:
+        return _blocked_resequencing(
+            case, decision, (ActionBlockReason.WRONG_SCENARIO_TYPE,)
+        )
+    if scenario.state not in (ScenarioState.FEASIBLE, ScenarioState.PARTIAL):
+        return _blocked_resequencing(
+            case, decision, (ActionBlockReason.SCENARIO_NOT_ACTIONABLE,)
+        )
+
+    payload = ":".join(
+        (
+            case.case_id,
+            str(case.current.case_version),
+            scenario.scenario_id,
+            command.approval.idempotency_key,
+        )
+    ).encode("utf-8")
+    token = sha256(payload).hexdigest().upper()
+    authorization_id = f"MES-RESEQ-{token[:10]}"
+    receipt = ActionReceipt(
+        action_id=f"ACT-{token[10:22]}",
+        case_id=case.case_id,
+        case_version=case.current.case_version,
+        case_hash=case.current.case_hash,
+        action_type=ControlledAction.AUTHORIZE_RESEQUENCING.value,
+        external_reference=authorization_id,
+        idempotency_key=command.approval.idempotency_key,
+        status=ActionExecutionStatus.CREATED.value,
+        executed_at=command.approval.evaluated_at,
+    )
+    authorization = ResequencingAuthorizationRecord(
+        authorization_id=authorization_id,
+        scenario_id=scenario.scenario_id,
+        scenario_name=scenario.name,
+        status=ActionExecutionStatus.CREATED,
+        authorized_at=command.approval.evaluated_at,
+        production_release_authorized=False,
+    )
+    return ResequencingAuthorizationResult(
+        status=ActionExecutionStatus.CREATED,
+        case=append_action_receipt(
+            case, receipt, updated_at=command.approval.evaluated_at
+        ),
+        approval_decision=decision,
+        authorization=authorization,
+        action_receipt=receipt,
+        block_reasons=(),
+        production_release_authorized=False,
+    )
+
+
+def _blocked_resequencing(
+    case: RecoveryCase,
+    decision: ApprovalGateDecision,
+    reasons: tuple[ActionBlockReason, ...],
+) -> ResequencingAuthorizationResult:
+    return ResequencingAuthorizationResult(
+        status=ActionExecutionStatus.BLOCKED,
+        case=case,
+        approval_decision=decision,
+        authorization=None,
+        action_receipt=None,
+        block_reasons=reasons,
         production_release_authorized=False,
     )
 

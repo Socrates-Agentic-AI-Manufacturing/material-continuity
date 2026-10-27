@@ -1,6 +1,6 @@
 """Application use cases for the local, synthetic-data web MVP."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from hashlib import pbkdf2_hmac, sha256
 import hmac
 import json
@@ -11,7 +11,12 @@ import logging
 
 from agents.recovery_supervisor import RecoverySupervisorRequest, run_recovery_workflow
 from agents.recovery_supervisor.openai_review import run_openai_review
-from core.actions import CreateQualificationTaskCommand, create_qualification_task
+from core.actions import (
+    AuthorizeResequencingCommand,
+    CreateQualificationTaskCommand,
+    authorize_resequencing,
+    create_qualification_task,
+)
 from core.approval import (
     ALLOWED_ACTIONS_BY_ROLE, ApprovalValidationRequest, ApproverRole,
     AuthenticatedPrincipal, ControlledAction, validate_approval,
@@ -20,6 +25,7 @@ from core.case_state import ApprovalRecord, RecoveryCaseUpdate, TriggerType, app
 from core.case_state.serialization import canonicalize
 from core.qualification.models import TaskType
 from core.requirements import CandidateDecision
+from core.simulation import ScenarioState, ScenarioType
 from services.llm.openai import ModelError, OpenAIResponsesClient, OpenAISettings
 
 from .store import Store
@@ -60,7 +66,19 @@ class Application:
         return datetime.now(timezone.utc)
 
     def tools(self, db=None):
-        return WebFixtureTools(self.fixture_root, self.document_root, self.document_repository.active_state(db))
+        if db is None:
+            with self.store.transaction() as connection:
+                return self.tools(connection)
+        overrides = [
+            {"po_id": row["po_id"], **json.loads(row["payload"])}
+            for row in db.execute("SELECT po_id, payload FROM purchase_order_overrides ORDER BY po_id")
+        ]
+        return WebFixtureTools(
+            self.fixture_root,
+            self.document_root,
+            self.document_repository.active_state(db),
+            overrides,
+        )
 
     def initialize(self, password):
         if not password:
@@ -136,6 +154,18 @@ class Application:
             "shortage_date": case.current.exposure.shortage_date,
             "exposed_quantity": case.current.simulation.baseline_exposed_quantity,
             "exposed_order_count": case.current.simulation.baseline_exposed_order_count,
+            "pending_approval_count": sum(
+                1
+                for scenario in case.current.simulation.scenarios
+                if scenario.scenario_type is ScenarioType.PRODUCTION_RESEQUENCING
+                and scenario.state in (ScenarioState.FEASIBLE, ScenarioState.PARTIAL)
+                and not any(
+                    action.action_type == ControlledAction.AUTHORIZE_RESEQUENCING.value
+                    and action.case_version == case.current.case_version
+                    and action.case_hash == case.current.case_hash
+                    for action in case.actions
+                )
+            ),
             "updated_at": case.updated_at,
         } for case in cases]
 
@@ -168,7 +198,9 @@ class Application:
             trace = json.loads(db.execute("SELECT trace FROM cases WHERE case_id=?", (case_id,)).fetchone()["trace"])
             tasks = [json.loads(row["payload"]) for row in db.execute("SELECT payload FROM tasks WHERE case_id=?", (case_id,))]
             scopes = {row["approval_id"]: dict(row) for row in db.execute("SELECT * FROM approval_scopes WHERE case_id=?", (case_id,))}
+            resequencing_scopes = {row["approval_id"]: dict(row) for row in db.execute("SELECT * FROM resequencing_approval_scopes WHERE case_id=?", (case_id,))}
             review_row = db.execute("SELECT payload FROM ai_reviews WHERE case_id=? ORDER BY review_id DESC LIMIT 1", (case_id,)).fetchone()
+            delivery_inputs = [item for item in self.tools(db).purchase_orders() if item["material_id"] == case.current.exposure.material_id]
         current_sources = self.tools().get_source_versions()
         sources_current = self.source_state(case.current.source_versions) == self.source_state(current_sources)
         latest_review = json.loads(review_row["payload"]) if review_row else None
@@ -177,20 +209,33 @@ class Application:
         principal = self.principal(session)
         approvals = []
         for approval in case.approvals:
-            scope = scopes[approval.approval_id]
+            if approval.approval_id in scopes:
+                scope = {**scopes[approval.approval_id], "kind": "QUALIFICATION"}
+                action = ControlledAction.CREATE_QUALIFICATION_TASK
+                key = self.action_key(case, approval, scope)
+            elif approval.approval_id in resequencing_scopes:
+                scope = {**resequencing_scopes[approval.approval_id], "kind": "RESEQUENCING"}
+                action = ControlledAction.AUTHORIZE_RESEQUENCING
+                key = self.resequencing_action_key(case, approval, scope)
+            else:
+                continue
             decision = validate_approval(case, ApprovalValidationRequest(
-                approval_id=approval.approval_id, action=ControlledAction.CREATE_QUALIFICATION_TASK,
+                approval_id=approval.approval_id, action=action,
                 principal=principal, evaluated_at=self.now(), current_source_versions=current_sources,
-                idempotency_key=self.action_key(case, approval, scope),
+                idempotency_key=key,
             ))
             approvals.append({**canonicalize(approval), "scope": scope, "validation": canonicalize(decision)})
+        resequencing_targets = self.resequencing_targets(case)
         return {
             "case": canonicalize(case), "current": canonicalize(case.current),
             "tool_trace": trace, "tasks": tasks, "approvals": approvals,
             "latest_ai_review": latest_review,
             "qualification_targets": self.qualification_targets(case),
+            "resequencing_targets": resequencing_targets,
+            "delivery_inputs": delivery_inputs,
             "sources_current": sources_current,
             "can_approve": ControlledAction.CREATE_QUALIFICATION_TASK in ALLOWED_ACTIONS_BY_ROLE[principal.role],
+            "can_authorize_resequencing": ControlledAction.AUTHORIZE_RESEQUENCING in ALLOWED_ACTIONS_BY_ROLE[principal.role],
             "production_release_authorized": False,
             "data_mode": "SYNTHETIC_FIXTURES",
         }
@@ -219,6 +264,61 @@ class Application:
             ), change_reason="Web re-investigation of current local source data.", updated_at=now)
             self.store.save_case(db, updated.case, json.dumps(canonicalize(result.tool_trace)))
         return {"version_changed": updated.version_changed, "changed_source_ids": updated.changed_source_ids}
+
+    def inject_delivery_delay(self, case_id, body, session):
+        """Persist one synthetic PO delay and immediately rebuild the reviewed case."""
+
+        po_id = body.get("po_id")
+        raw_date = body.get("expected_delivery")
+        if not isinstance(po_id, str) or not isinstance(raw_date, str):
+            raise ApplicationError(422, "INVALID_DELIVERY_DELAY", "Pilih purchase order dan tanggal delivery baru.")
+        try:
+            expected_delivery = date.fromisoformat(raw_date)
+        except ValueError:
+            raise ApplicationError(422, "INVALID_DELIVERY_DATE", "Tanggal delivery harus memakai format YYYY-MM-DD.") from None
+        with self.store.transaction() as db:
+            case = self.store.get_case(db, case_id)
+            self.check_snapshot(case, body)
+            tools = self.tools(db)
+            current = next((item for item in tools.purchase_orders() if item["po_id"] == po_id), None)
+            if current is None or current["material_id"] != case.current.exposure.material_id:
+                raise ApplicationError(422, "UNKNOWN_PURCHASE_ORDER", "Purchase order tidak berlaku untuk material kasus ini.")
+            original = date.fromisoformat(current["original_expected_delivery"])
+            current_date = date.fromisoformat(current["expected_delivery"])
+            if expected_delivery <= original:
+                raise ApplicationError(422, "NOT_A_DELAY", "Tanggal baru harus setelah delivery awal purchase order.")
+            if expected_delivery == current_date:
+                raise ApplicationError(409, "DELIVERY_UNCHANGED", "Tanggal delivery belum berubah.")
+            now = self.now()
+            payload = {
+                "expected_delivery": expected_delivery.isoformat(),
+                "original_expected_delivery": original.isoformat(),
+                "status": "DELAYED",
+            }
+            db.execute(
+                "INSERT INTO purchase_order_overrides VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(po_id) DO UPDATE SET payload=excluded.payload, updated_by=excluded.updated_by, updated_at=excluded.updated_at",
+                (po_id, json.dumps(payload), session["user_id"], now.isoformat()),
+            )
+            result = self.investigation(case_id, now, db)
+            fresh = result.case.current
+            updated = update_case(case, update=RecoveryCaseUpdate(
+                exposure=fresh.exposure, recovery_options=fresh.recovery_options,
+                candidate_comparisons=fresh.candidate_comparisons,
+                qualification_graphs=fresh.qualification_graphs, simulation=fresh.simulation,
+                source_versions=fresh.source_versions,
+            ), change_reason=f"Synthetic delivery delay injected for {po_id}: {current_date} to {expected_delivery}.", updated_at=now)
+            self.store.save_case(db, updated.case, json.dumps(canonicalize(result.tool_trace)))
+        return {
+            "po_id": po_id,
+            "previous_expected_delivery": current_date,
+            "expected_delivery": expected_delivery,
+            "version_changed": updated.version_changed,
+            "case_version": updated.case.current.case_version,
+            "shortage_date": updated.case.current.exposure.shortage_date,
+            "exposed_quantity": updated.case.current.simulation.baseline_exposed_quantity,
+            "exposed_order_count": updated.case.current.simulation.baseline_exposed_order_count,
+        }
 
     def ai_review(self, case_id, body):
         """Explicit, potentially paid, read-only request against one snapshot.
@@ -275,6 +375,21 @@ class Application:
             for schedule in graph.schedules if schedule.task_type is TaskType.TEST and schedule.requirement_id
         ]
 
+    @staticmethod
+    def resequencing_targets(case):
+        return [
+            {
+                "scenario_id": scenario.scenario_id,
+                "scenario_name": scenario.name,
+                "state": scenario.state,
+                "rank": scenario.rank,
+                "rank_reason": scenario.rank_reason,
+            }
+            for scenario in case.current.simulation.scenarios
+            if scenario.scenario_type is ScenarioType.PRODUCTION_RESEQUENCING
+            and scenario.state in (ScenarioState.FEASIBLE, ScenarioState.PARTIAL)
+        ]
+
     def approve(self, case_id, body, session):
         principal = self.principal(session)
         if ControlledAction.CREATE_QUALIFICATION_TASK not in ALLOWED_ACTIONS_BY_ROLE[principal.role]:
@@ -300,11 +415,54 @@ class Application:
             self.store.update_case(db, case)
         return canonicalize(approval)
 
+    def approve_resequencing(self, case_id, body, session):
+        principal = self.principal(session)
+        if ControlledAction.AUTHORIZE_RESEQUENCING not in ALLOWED_ACTIONS_BY_ROLE[principal.role]:
+            raise ApplicationError(403, "ROLE_NOT_PERMITTED", "Hanya Production Planner dapat menyetujui production resequencing.")
+        with self.store.transaction() as db:
+            case = self.store.get_case(db, case_id)
+            self.check_snapshot(case, body)
+            if self.source_state(case.current.source_versions) != self.source_state(self.tools(db).get_source_versions()):
+                raise ApplicationError(409, "SOURCE_STATE_CHANGED", "Sumber berubah. Jalankan investigasi ulang sebelum approval.")
+            target = next(
+                (
+                    item
+                    for item in self.resequencing_targets(case)
+                    if item["scenario_id"] == body.get("scenario_id")
+                ),
+                None,
+            )
+            if target is None:
+                raise ApplicationError(422, "INVALID_RESEQUENCING_TARGET", "Skenario resequencing tidak berlaku untuk snapshot kasus ini.")
+            now = self.now()
+            approval = ApprovalRecord(
+                approval_id="APR-" + secrets.token_hex(8).upper(),
+                case_id=case_id,
+                case_version=case.current.case_version,
+                case_hash=case.current.case_hash,
+                approver_id=principal.principal_id,
+                approver_role=principal.role.value,
+                permitted_action=ControlledAction.AUTHORIZE_RESEQUENCING.value,
+                approved_at=now,
+                expires_at=now + timedelta(hours=8),
+            )
+            case = append_approval(case, approval, updated_at=now)
+            db.execute(
+                "INSERT INTO resequencing_approval_scopes VALUES (?, ?, ?, ?)",
+                (approval.approval_id, case_id, target["scenario_id"], target["scenario_name"]),
+            )
+            self.store.update_case(db, case)
+        return canonicalize(approval)
+
     @staticmethod
     def action_key(case, approval, scope):
         # A target can create at most one task per reviewed version, even if
         # multiple approvers issue separate approvals or requests run concurrently.
         return f"qualification:{case.case_id}:v{approval.case_version}:{scope['candidate_id']}:{scope['requirement_id']}"
+
+    @staticmethod
+    def resequencing_action_key(case, approval, scope):
+        return f"resequencing:{case.case_id}:v{approval.case_version}:{scope['scenario_id']}"
 
     def execute(self, case_id, body, session):
         with self.store.transaction() as db:
@@ -331,6 +489,40 @@ class Application:
             db.execute("INSERT INTO tasks VALUES (?, ?, ?)", (case_id, key, json.dumps(canonicalize(result.task))))
             self.store.update_case(db, result.case)
         return {"task": canonicalize(result.task), "receipt": canonicalize(result.action_receipt), "production_release_authorized": False}
+
+    def execute_resequencing(self, case_id, body, session):
+        with self.store.transaction() as db:
+            case = self.store.get_case(db, case_id)
+            self.check_snapshot(case, body)
+            scope = db.execute(
+                "SELECT * FROM resequencing_approval_scopes WHERE approval_id=? AND case_id=?",
+                (body.get("approval_id"), case_id),
+            ).fetchone()
+            if scope is None:
+                raise ApplicationError(404, "APPROVAL_NOT_FOUND", "Approval resequencing tidak ditemukan untuk kasus ini.")
+            approval = next(item for item in case.approvals if item.approval_id == scope["approval_id"])
+            result = authorize_resequencing(case, AuthorizeResequencingCommand(
+                scenario_id=scope["scenario_id"],
+                approval=ApprovalValidationRequest(
+                    approval_id=approval.approval_id,
+                    action=ControlledAction.AUTHORIZE_RESEQUENCING,
+                    principal=self.principal(session),
+                    evaluated_at=self.now(),
+                    current_source_versions=self.tools(db).get_source_versions(),
+                    idempotency_key=self.resequencing_action_key(case, approval, scope),
+                ),
+            ))
+            if not result.created:
+                raise ApplicationError(409, "ACTION_BLOCKED", "Authorization resequencing diblokir oleh pemeriksaan kontrol.", {
+                    "reasons": canonicalize(result.approval_decision.reasons),
+                    "block_reasons": canonicalize(result.block_reasons),
+                })
+            self.store.update_case(db, result.case)
+        return {
+            "authorization": canonicalize(result.authorization),
+            "receipt": canonicalize(result.action_receipt),
+            "production_release_authorized": False,
+        }
 
     def documents(self):
         manifest = json.loads((self.document_root / "manifest.json").read_text(encoding="utf-8"))

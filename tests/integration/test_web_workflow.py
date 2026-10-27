@@ -102,6 +102,60 @@ class WebWorkflowTests(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertTrue(pdf.startswith(b"%PDF-"))
 
+    def test_delayed_delivery_injection_recalculates_exposure_and_case_version(self):
+        self.login("planner")
+        before = self.view()
+        self.assertEqual(700, before["current"]["simulation"]["baseline_exposed_quantity"])
+        status, result, _ = self.request(
+            "POST",
+            "/api/cases/CASE-001/delivery-delay",
+            {
+                **self.snapshot(before),
+                "po_id": "PO-ORIGINAL-001",
+                "expected_delivery": "2026-10-27",
+            },
+        )
+        self.assertEqual(200, status)
+        self.assertTrue(result["version_changed"])
+        self.assertEqual(800, result["exposed_quantity"])
+        self.assertEqual(8, result["exposed_order_count"])
+        after = self.view()
+        self.assertEqual(2, after["current"]["case_version"])
+        self.assertEqual("2026-10-27", next(item for item in after["delivery_inputs"] if item["po_id"] == "PO-ORIGINAL-001")["expected_delivery"])
+        self.assertTrue(next(item for item in after["delivery_inputs"] if item["po_id"] == "PO-ORIGINAL-001")["injected"])
+
+    def test_planner_can_approve_and_execute_resequencing_with_receipt(self):
+        self.login("planner")
+        view = self.view()
+        self.assertTrue(view["can_authorize_resequencing"])
+        target = view["resequencing_targets"][0]
+        status, approval, _ = self.request(
+            "POST",
+            "/api/cases/CASE-001/resequencing-approvals",
+            {**self.snapshot(view), "scenario_id": target["scenario_id"]},
+        )
+        self.assertEqual(201, status)
+        body = {**self.snapshot(self.view()), "approval_id": approval["approval_id"]}
+        status, result, _ = self.request("POST", "/api/cases/CASE-001/resequencing-actions", body)
+        self.assertEqual(201, status)
+        self.assertTrue(result["authorization"]["authorization_id"].startswith("MES-RESEQ-"))
+        self.assertFalse(result["production_release_authorized"])
+        after = self.view()
+        self.assertEqual("AUTHORIZE_RESEQUENCING", after["case"]["actions"][-1]["action_type"])
+        self.assertEqual(409, self.request("POST", "/api/cases/CASE-001/resequencing-actions", body)[0])
+
+    def test_quality_cannot_approve_resequencing(self):
+        self.login("quality")
+        view = self.view()
+        target = view["resequencing_targets"][0]
+        status, error, _ = self.request(
+            "POST",
+            "/api/cases/CASE-001/resequencing-approvals",
+            {**self.snapshot(view), "scenario_id": target["scenario_id"]},
+        )
+        self.assertEqual(403, status)
+        self.assertEqual("ROLE_NOT_PERMITTED", error["error"]["code"])
+
     def test_login_required_and_logout_invalidates_cookie(self):
         self.assertEqual(401, self.request("GET", "/api/cases")[0])
         self.login()

@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from core.exposure import AffectedOrder, ExposureResult
 from core.simulation import (
     ScenarioInput,
+    ScenarioRankingGroup,
     ScenarioState,
     ScenarioType,
     SimulationInputError,
@@ -80,6 +81,37 @@ class RecoverySimulationTests(unittest.TestCase):
                 shortage_at=SHORTAGE_AT,
                 scenarios=(scenario, scenario),
             )
+
+    def test_ranking_prefers_fewer_exposed_orders_then_time_and_cost(self) -> None:
+        partial = replace(
+            self.scenario(quantity=100, ready_at=SHORTAGE_AT),
+            scenario_id="SCN-PARTIAL",
+            incremental_cost_cents=100,
+        )
+        costly = replace(
+            self.scenario(quantity=200, ready_at=SHORTAGE_AT),
+            scenario_id="SCN-COSTLY",
+            incremental_cost_cents=5000,
+        )
+        cheaper = replace(
+            self.scenario(quantity=200, ready_at=SHORTAGE_AT),
+            scenario_id="SCN-CHEAPER",
+            incremental_cost_cents=2000,
+        )
+
+        result = simulate_recovery(
+            exposure=self.exposure(),
+            shortage_at=SHORTAGE_AT,
+            scenarios=(partial, costly, cheaper),
+        )
+        by_id = {item.scenario_id: item for item in result.scenarios}
+
+        self.assertEqual(1, by_id["SCN-CHEAPER"].rank)
+        self.assertEqual(2, by_id["SCN-COSTLY"].rank)
+        self.assertEqual(3, by_id["SCN-PARTIAL"].rank)
+        self.assertEqual(ScenarioRankingGroup.FEASIBLE, by_id["SCN-CHEAPER"].ranking_group)
+        self.assertEqual(ScenarioRankingGroup.CONDITIONAL, by_id["SCN-PARTIAL"].ranking_group)
+        self.assertIn("exposed orders remain", by_id["SCN-CHEAPER"].rank_reason)
 
     def simulate(self, scenario: ScenarioInput):
         return simulate_recovery(

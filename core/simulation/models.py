@@ -27,6 +27,12 @@ class ScenarioState(StrEnum):
     NO_RECOVERY_REQUIRED = "NO_RECOVERY_REQUIRED"
 
 
+class ScenarioRankingGroup(StrEnum):
+    FEASIBLE = "FEASIBLE"
+    CONDITIONAL = "CONDITIONAL"
+    NOT_ACTIONABLE = "NOT_ACTIONABLE"
+
+
 @dataclass(frozen=True, slots=True)
 class ScenarioInput:
     scenario_id: str
@@ -55,6 +61,9 @@ class ScenarioResult:
     scenario_type: ScenarioType
     name: str
     state: ScenarioState
+    rank: int
+    ranking_group: ScenarioRankingGroup
+    rank_reason: str
     ready_at: datetime | None
     qualification_complete: datetime | None
     ready_by_shortage: bool | None
