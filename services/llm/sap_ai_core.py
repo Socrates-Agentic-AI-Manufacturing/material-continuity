@@ -55,7 +55,6 @@ class SAPAICoreSettings:
             or not 1 <= settings.timeout_seconds <= 30
             or not 256 <= settings.max_output_tokens <= 4096
             or not settings.resource_group
-            or not settings.deployment_id
         ):
             raise ModelError("INVALID_LLM_CONFIG")
         return settings
@@ -101,8 +100,15 @@ class SAPAICoreClient:
         try:
             with self._opener.open(request, timeout=timeout) as response:
                 raw = response.read(MAX_RESPONSE_BYTES + 1)
-        except (HTTPError, URLError, OSError, TimeoutError, socket.timeout):
+        except HTTPError as error:
+            error.close()
             raise ModelError("LLM_AUTH_FAILED") from None
+        except (TimeoutError, socket.timeout):
+            raise ModelError("LLM_TIMEOUT") from None
+        except (URLError, OSError):
+            raise ModelError("LLM_NETWORK_ERROR") from None
+        if len(raw) > MAX_RESPONSE_BYTES:
+            raise ModelError("LLM_RESPONSE_LIMIT")
         try:
             token = json.loads(raw).get("access_token")
         except (ValueError, UnicodeError, AttributeError):
@@ -139,7 +145,9 @@ class SAPAICoreClient:
             code = {401: "LLM_AUTH_FAILED", 403: "LLM_ACCESS_DENIED", 429: "LLM_RATE_OR_QUOTA_LIMIT"}.get(error.code, "LLM_PROVIDER_ERROR")
             error.close()
             raise ModelError(code) from None
-        except (URLError, OSError, TimeoutError, socket.timeout):
+        except (TimeoutError, socket.timeout):
+            raise ModelError("LLM_TIMEOUT") from None
+        except (URLError, OSError):
             raise ModelError("LLM_NETWORK_ERROR") from None
         if len(raw) > MAX_RESPONSE_BYTES:
             raise ModelError("LLM_RESPONSE_LIMIT")
