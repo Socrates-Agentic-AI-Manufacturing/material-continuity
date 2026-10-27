@@ -9,7 +9,22 @@ let workflowPreferAI = false;
 let llmStatus = {configured:false};
 const content = document.querySelector('#content');
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const badge = value => `<span class="badge ${escape(value)}">${escape(value)}</span>`;
+const STATUS_LABELS = {
+  UNDER_REVIEW:'Perlu ditinjau', MATCH:'Sesuai', MISMATCH:'Tidak sesuai',
+  BLOCKED:'Terblokir', REJECTED_HARD_MISMATCH:'Ditolak · spesifikasi tidak sesuai',
+  BLOCKED_PENDING_EVIDENCE_OR_RELEASE:'Menunggu bukti / release', UNKNOWN:'Belum diketahui',
+  FOUND:'Ditemukan', NONE:'Tidak ada', FEASIBLE:'Layak', AUTHORIZED:'Diizinkan',
+  PARTIAL:'Sebagian', UNRESOLVED:'Belum selesai', TEXT_READY:'Siap direview',
+  HUMAN_GATE:'Persetujuan manusia', RECORDED:'Terekam', VERSIONED:'Terversi',
+  RECEIPT_RECORDED:'Receipt tersimpan', NOT_EXECUTED:'Belum dijalankan', ADVISORY:'Advisory',
+};
+const statusTone = value => ['MATCH','FEASIBLE','AUTHORIZED','FOUND','RECEIPT_RECORDED'].includes(value) ? 'positive'
+  : ['MISMATCH','BLOCKED','REJECTED_HARD_MISMATCH'].includes(value) ? 'negative'
+  : ['UNKNOWN','PARTIAL','UNRESOLVED','BLOCKED_PENDING_EVIDENCE_OR_RELEASE','UNDER_REVIEW','HUMAN_GATE'].includes(value) ? 'critical'
+  : ['ADVISORY'].includes(value) ? 'advisory' : 'neutral';
+const badge = value => `<span class="badge ${statusTone(value)} ${escape(value)}" title="${escape(value)}">${escape(STATUS_LABELS[value] || String(value).replaceAll('_',' ').toLowerCase())}</span>`;
+const ROLE_LABELS = {QUALITY_ENGINEER:'Quality Engineer',ENGINEERING_REVIEWER:'Engineering Reviewer',PRODUCTION_PLANNER:'Production Planner'};
+const roleLabel = value => ROLE_LABELS[value] || String(value || '').replaceAll('_',' ').toLowerCase();
 const time = value => value ? new Intl.DateTimeFormat('id-ID', {dateStyle:'medium', timeStyle:'short', timeZone:'Asia/Jakarta'}).format(new Date(value)) + ' WIB' : 'Belum diketahui';
 const date = value => value || 'Belum diketahui';
 const table = (caption, headers, rows) => `<div class="table-scroll"><table><caption>${escape(caption)}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
@@ -67,13 +82,19 @@ function showLogin() {
   if (workflowCleanup) { workflowCleanup(); workflowCleanup = null; }
   document.querySelector('#navigation').hidden = true;
   document.querySelector('#identity').textContent = '';
-  content.innerHTML = `<section class="panel login"><h1>Login untuk review kasus</h1>
-    <p>Gunakan akun demo lokal. Role disimpan oleh server dan menentukan tindakan yang boleh disetujui.</p>
-    <form id="login"><div><label for="username">Akun demo</label><select id="username" name="username">
+  content.innerHTML = `<section class="login-shell"><div class="login-context">
+    <span class="eyebrow">Material continuity workspace</span>
+    <h1>Keputusan pemulihan material yang dapat ditelusuri.</h1>
+    <p>Satukan exposure produksi, bukti teknis, qualification plan, dan human approval dalam satu review workspace.</p>
+    <ul class="login-benefits"><li>Evidence-bound decision</li><li>Versioned investigation</li><li>Human-controlled release</li></ul>
+    <p class="login-safety">Demo lokal · data sintetis · production release tetap dikendalikan manusia</p>
+    </div><div class="panel login-card"><span class="eyebrow">Akses workspace</span><h2>Login untuk review kasus</h2>
+    <p>Gunakan akun demo sesuai peran Anda. Hak tindakan ditentukan oleh server.</p>
+    <form id="login"><div><label for="username">Peran demo</label><select id="username" name="username">
       <option value="quality">quality — Quality Engineer</option><option value="engineering">engineering — Engineering Reviewer</option><option value="planner">planner — Production Planner</option>
     </select></div><div><label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
-    <button type="submit">Login</button></form>
-    <small>Password default untuk demo localhost: <code>local-demo</code>. Jika diganti saat server dijalankan, gunakan password yang dikonfigurasi.</small></section>`;
+    <button type="submit">Masuk ke workspace <span aria-hidden="true">→</span></button></form>
+    <small>Password demo localhost: <code>local-demo</code></small></div></section>`;
   document.querySelector('#login').addEventListener('submit', event=>{
     event.preventDefault();
     const form = new FormData(event.target);
@@ -87,7 +108,7 @@ function showLogin() {
 
 function shell(section) {
   document.querySelector('#navigation').hidden = false;
-  document.querySelector('#identity').innerHTML = `<div class="actions"><span>${escape(session.user_id)} · ${escape(session.role)}</span><button id="logout" class="secondary">Logout</button></div>`;
+  document.querySelector('#identity').innerHTML = `<div class="identity"><span class="avatar" aria-hidden="true">${escape(String(session.user_id || '?').slice(0,1).toUpperCase())}</span><span><strong>${escape(session.user_id)}</strong><small>${escape(roleLabel(session.role))}</small></span><button id="logout" class="ghost">Keluar</button></div>`;
   document.querySelector('#logout').onclick = ()=>perform(async()=>{
     await api('/api/logout', {}); session = null; showLogin(); notify('Logout berhasil.');
   });
@@ -108,10 +129,18 @@ async function route() {
   if (section === 'cases' && parts[1]) return showCase(parts[1], parts[2] || 'summary');
   const data = await api('/api/cases');
   const cases = data.cases;
-  content.innerHTML = `<h1>${section === 'overview' ? 'Overview' : 'Recovery Cases'}</h1>
-    <p>${section === 'overview' ? 'Lihat risiko material dan buka kasus untuk menilai opsi pemulihan produksi.' : 'Kasus disimpan di backend. Buka kasus untuk melihat evidence dan melakukan review.'}</p>
-    <p class="notice">Skenario fixture menggunakan tanggal September–Oktober 2026. Ini bukan status produksi real-time.</p>
-    ${cases.length ? table('Kasus material', ['Kasus','Material','Shortage','Dampak produksi','Status','Terakhir diperbarui'], cases.map(item=>`<tr>
+  const totalExposed = cases.reduce((sum,item)=>sum + Number(item.exposed_quantity || 0),0);
+  const totalOrders = cases.reduce((sum,item)=>sum + Number(item.exposed_order_count || 0),0);
+  const reviewCount = cases.filter(item=>item.status==='UNDER_REVIEW').length;
+  content.innerHTML = `<section class="page-heading"><div><span class="eyebrow">Operate · recovery control</span><h1>${section === 'overview' ? 'Continuity overview' : 'Recovery cases'}</h1>
+    <p>${section === 'overview' ? 'Prioritaskan risiko material, lalu buka kasus untuk menilai jalur pemulihan.' : 'Telusuri kasus, bukti, keputusan, dan authorization yang tersimpan di backend.'}</p></div>
+    <span class="data-context">Fixture · Sep–Okt 2026</span></section>
+    <section class="metric-grid overview-metrics" aria-label="Ringkasan risiko"><article class="metric primary"><span>Kasus aktif</span><strong>${cases.length}</strong><small>case dalam workspace</small></article>
+      <article class="metric critical"><span>Perlu ditinjau</span><strong>${reviewCount}</strong><small>membutuhkan keputusan</small></article>
+      <article class="metric"><span>Quantity exposed</span><strong>${totalExposed.toLocaleString('id-ID')} <em>EA</em></strong><small>baseline exposure</small></article>
+      <article class="metric"><span>Production orders</span><strong>${totalOrders}</strong><small>order terdampak</small></article></section>
+    <div class="section-heading"><div><span class="eyebrow">Prioritas saat ini</span><h2>Kasus material</h2></div><p>Pilih kasus untuk membuka decision workspace.</p></div>
+    ${cases.length ? table('Kasus material aktif', ['Kasus','Material','Shortage','Dampak produksi','Status','Diperbarui'], cases.map(item=>`<tr>
       <td><a href="#cases/${encodeURIComponent(item.case_id)}/summary">${escape(item.case_id)}</a><small>Versi ${item.case_version}</small></td>
       <td>${escape(item.material_id)}</td><td>${escape(date(item.shortage_date))}</td>
       <td>${item.exposed_quantity} EA / ${item.exposed_order_count} orders</td><td>${badge(item.status)}</td><td>${time(item.updated_at)}</td></tr>`)) : '<p>Belum ada kasus. Periksa inisialisasi fixture di server.</p>'}`;
@@ -131,18 +160,19 @@ async function showDocuments(revisionId) {
   documents = data.documents;
   const canEdit = ['QUALITY_ENGINEER','ENGINEERING_REVIEWER'].includes(session.role);
   const item = revisionId ? await api('/api/document-revisions/' + encodeURIComponent(revisionId)) : null;
-  content.innerHTML = `<h1>Documents &amp; Data</h1><p>PDF dibaca per halaman. Ekstraksi OpenAI menghasilkan usulan, bukan evidence terverifikasi atau izin produksi. Data operasional tetap sintetis; internet dan OCR belum terhubung.</p>
-    <p><a href="#cases/CASE-001/evidence">Buka evidence kasus CASE-001</a> · <a href="#cases/CASE-001/approvals">Approval &amp; Actions</a></p>
+  content.innerHTML = `<section class="page-heading"><div><span class="eyebrow">Evidence library</span><h1>Documents &amp; Data</h1><p>Kelola sumber bukti, revisi, dan authority tanpa mencampurkan proposal AI dengan evidence terverifikasi.</p></div>
+    <div class="quick-links"><a href="#cases/CASE-001/evidence">Evidence CASE-001</a><a href="#cases/CASE-001/approvals">Approval &amp; Actions</a></div></section>
+    <div class="context-banner"><strong>Batas sistem saat ini</strong><span>PDF dibaca per halaman. Internet dan OCR belum terhubung. Ekstraksi OpenAI hanya menghasilkan usulan.</span></div>
     ${item ? documentDetail(item, status, canEdit) : ''}
-    ${canEdit ? `<details ${!item ? 'open' : ''}><summary>Upload revisi PDF kandidat</summary><form id="upload-document" class="panel">
+    ${canEdit ? `<details class="upload-disclosure"><summary><span><strong>Upload revisi PDF kandidat</strong><small>Simpan dan baca sumber baru secara lokal</small></span><span aria-hidden="true">＋</span></summary><form id="upload-document" class="panel upload-panel">
       <div><label for="doc-candidate">Kandidat</label><select id="doc-candidate" name="candidate_id">${['CAND-A','CAND-B','CAND-C'].map(id=>`<option>${id}</option>`).join('')}</select></div>
       <div><label for="doc-id">Document ID stabil antar revisi</label><input id="doc-id" name="document_id" value="DS-CAND-A" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
       <div><label for="doc-revision">Revisi sesuai isi PDF</label><input id="doc-revision" name="revision" placeholder="Contoh: 2 atau 3" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
       <div><label for="doc-file">PDF berbasis teks (maks. 2 MB / 20 halaman)</label><input id="doc-file" name="file" type="file" accept="application/pdf,.pdf" required></div>
       <p>Upload hanya menyimpan dan membaca teks secara lokal. Tidak mengirim ke OpenAI atau mengaktifkan revisi. Gunakan ID yang sama untuk revisi dokumen yang sama; isi revisi lama tidak bisa ditimpa.</p>
       <button type="submit">Upload dan baca PDF</button><p id="upload-progress" role="status" hidden>Menyimpan dan membaca halaman PDF…</p></form></details>` : '<p class="notice">Planner dapat membaca dokumen. Upload, review evidence, dan aktivasi memerlukan Engineering atau Quality.</p>'}
-    <h2>Revisi tersimpan</h2>${data.revisions.length ? table('Revisi PDF lokal; pilih detail untuk ekstraksi dan review', ['Dokumen / kandidat','Revisi','Proses','Authority'], data.revisions.map(row=>`<tr><td><a href="#documents/${escape(row.revision_id)}">${escape(row.original_name)}</a><small>${escape(row.document_id)} · ${escape(row.candidate_id)}</small></td><td>${escape(row.revision)}</td><td>${badge(row.status)}<small>${escape(row.error || '')}</small></td><td>${row.active ? 'AKTIF' : 'Arsip / belum aktif'}<small>${row.reviewed_by ? 'Direview ' + escape(row.reviewed_by) : 'Evidence belum direview'}</small></td></tr>`)) : '<p>Belum ada PDF yang diupload. Corpus awal di bawah masih memakai prepared evidence sampai dossier kandidat diaktifkan.</p>'}
-    <h2>Corpus dan sumber bukti</h2>
+    <div class="section-heading"><div><span class="eyebrow">Revision authority</span><h2>Revisi tersimpan</h2></div></div>${data.revisions.length ? table('Revisi PDF lokal; pilih detail untuk ekstraksi dan review', ['Dokumen / kandidat','Revisi','Proses','Authority'], data.revisions.map(row=>`<tr><td><a href="#documents/${escape(row.revision_id)}">${escape(row.original_name)}</a><small>${escape(row.document_id)} · ${escape(row.candidate_id)}</small></td><td>${escape(row.revision)}</td><td>${badge(row.status)}<small>${escape(row.error || '')}</small></td><td>${row.active ? '<span class="authority-active">Aktif</span>' : 'Arsip / belum aktif'}<small>${row.reviewed_by ? 'Direview ' + escape(row.reviewed_by) : 'Evidence belum direview'}</small></td></tr>`)) : '<div class="empty-state"><strong>Belum ada PDF yang diupload</strong><p>Corpus awal masih memakai prepared evidence sampai dossier kandidat diaktifkan.</p></div>'}
+    <div class="section-heading"><div><span class="eyebrow">Prepared corpus</span><h2>Corpus dan sumber bukti</h2></div><p>${documents.length} dokumen technical / quality</p></div>
     ${table('Dokumen technical / quality', ['Dokumen','ID / Owner','Revisi','Effective date','Halaman','Checksum'], documents.map(item=>`<tr>
       <td><a href="/documents/${encodeURIComponent(item.filename)}" target="_blank" rel="noopener">${escape(item.filename)}</a></td>
       <td>${escape(item.document_id)}<small>${escape(item.owner)}</small></td><td>${escape(item.revision)}</td><td>${escape(item.effective_date || 'Belum dipetakan')}</td><td>${item.page_count}</td>
@@ -220,11 +250,13 @@ async function showCase(caseId, tab) {
   const current = view.current;
   const tabs = [['summary','Summary & Options'],['workflow','Agent Workflow'],['evidence','Evidence Review'],['scenarios','Recovery Scenarios'],['approvals','Approval & Actions']];
   if (!tabs.some(([key])=>key===tab)) tab='summary';
-  content.innerHTML = `<div class="case-heading"><div><a href="#cases">Kembali ke daftar kasus</a><h1>${escape(caseId)} · ${escape(current.exposure.material_id)}</h1><p class="muted">Versi ${current.case_version} · ${badge(current.status)} · diperbarui ${time(view.case.updated_at)}</p></div>
-    <button id="investigate">Investigasi ulang</button></div>
-    ${!view.sources_current ? '<p class="notice danger">Sumber berubah sejak review terakhir. Investigasi ulang diperlukan sebelum approval atau tindakan.</p>' : ''}
-    <p><strong>Production release: BLOCKED.</strong> Approval qualification task tidak mengizinkan material dipakai di produksi.</p>
-    <nav class="tabs" aria-label="Bagian kasus">${tabs.map(([key,label])=>`<a href="#cases/${encodeURIComponent(caseId)}/${key}" ${key===tab ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+  content.innerHTML = `<section class="object-header"><div class="object-title"><a class="breadcrumb" href="#cases"><span aria-hidden="true">←</span> Recovery cases</a>
+      <div class="object-title-row"><div><span class="eyebrow">Material recovery case</span><h1>${escape(caseId)} <span>· ${escape(current.exposure.material_id)}</span></h1></div>${badge(current.status)}</div>
+      <p>Versi ${current.case_version} · diperbarui ${time(view.case.updated_at)}</p></div>
+    <div class="object-actions"><span class="version-chip">Case version ${current.case_version}</span><button id="investigate">Investigasi ulang</button></div></section>
+    ${!view.sources_current ? '<div class="context-banner danger"><strong>Sumber berubah</strong><span>Investigasi ulang diperlukan sebelum approval atau tindakan berikutnya.</span></div>' : ''}
+    <div class="release-banner"><span class="release-icon" aria-hidden="true">!</span><div><span>Production release</span><strong>Terblokir</strong><small>Qualification approval tidak mengizinkan material dipakai di produksi.</small></div><a href="#cases/${encodeURIComponent(caseId)}/approvals">Lihat authorization</a></div>
+    <nav class="tabs case-tabs" aria-label="Bagian kasus">${tabs.map(([key,label])=>`<a href="#cases/${encodeURIComponent(caseId)}/${key}" ${key===tab ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
     <section id="case-tab">${tab==='workflow' ? AgentWorkflow.render(view,llmStatus) : ({summary:summaryTab, evidence:evidenceTab, scenarios:scenariosTab, approvals:approvalsTab}[tab])()}</section>
     <details><summary>Riwayat versi dan aktivitas investigasi</summary>${audit()}</details>`;
   document.querySelector('#investigate').onclick = ()=>perform(async()=>{
@@ -278,19 +310,21 @@ function summaryTab() {
   const c = view.current;
   const exposure = c.exposure;
   const options = c.recovery_options;
-  return `<dl class="facts">
-    <div><dt>Stok usable</dt><dd>${exposure.current_usable_stock} EA</dd></div><div><dt>Shortage pertama</dt><dd>${escape(date(exposure.shortage_date))}</dd></div>
-    <div><dt>Produksi exposed</dt><dd>${c.simulation.baseline_exposed_quantity} EA / ${c.simulation.baseline_exposed_order_count} orders</dd></div>
-    <div><dt>Timely approved coverage</dt><dd>${options.approved_covered_quantity} dari ${options.required_quantity} EA</dd></div><div><dt>Approved recovery cukup?</dt><dd>${options.approved_recovery_sufficient ? 'Ya' : 'Belum'}</dd></div>
-    <div><dt>As-of skenario</dt><dd>${time(exposure.as_of)}</dd></div></dl>
-    <h2>Approved recovery diperiksa terlebih dahulu</h2>
+  return `<section class="metric-grid case-metrics" aria-label="Ringkasan kasus">
+    <article class="metric"><span>Stok usable</span><strong>${exposure.current_usable_stock} <em>EA</em></strong><small>current available stock</small></article>
+    <article class="metric critical"><span>Shortage pertama</span><strong>${escape(date(exposure.shortage_date))}</strong><small>tanggal risiko terdekat</small></article>
+    <article class="metric critical"><span>Produksi exposed</span><strong>${c.simulation.baseline_exposed_quantity} <em>EA</em></strong><small>${c.simulation.baseline_exposed_order_count} production orders</small></article>
+    <article class="metric"><span>Approved coverage</span><strong>${options.approved_covered_quantity} / ${options.required_quantity} <em>EA</em></strong><small>${options.approved_recovery_sufficient ? 'Coverage mencukupi' : 'Coverage belum mencukupi'}</small></article></section>
+    <section class="decision-brief"><div><span class="eyebrow">Decision brief</span><h2>${options.approved_recovery_sufficient ? 'Approved recovery mencukupi' : 'Approved recovery belum mencukupi'}</h2><p>${options.approved_recovery_sufficient ? `Jalur approved melindungi kebutuhan ${options.required_quantity} EA. Verifikasi authorization sebelum tindakan operasional.` : `Belum ada jalur approved yang melindungi ${options.required_quantity} EA. Kandidat alternatif harus melewati evidence review dan qualification gate sebelum dapat dipertimbangkan.`}</p></div>
+      <div class="decision-next"><span>Langkah berikutnya</span><a href="#cases/${encodeURIComponent(view.case.case_id)}/evidence">Review evidence kandidat <span aria-hidden="true">→</span></a><a href="#cases/${encodeURIComponent(view.case.case_id)}/scenarios">Bandingkan recovery scenario <span aria-hidden="true">→</span></a></div></section>
+    <div class="section-heading"><div><span class="eyebrow">Approved-first search</span><h2>Approved recovery diperiksa terlebih dahulu</h2></div><p>As-of ${time(exposure.as_of)}</p></div>
     ${table('Urutan pencarian recovery', ['Kategori','Opsi dievaluasi','Hasil'], options.search_trace.map(step=>`<tr><td>${escape(step.category)}</td><td>${escape(step.evaluated_option_ids.join(', ') || 'Tidak ada')}</td><td>${badge(step.outcome)}</td></tr>`))}
-    <h2>Kandidat alternatif</h2>
+    <div class="section-heading"><div><span class="eyebrow">Unqualified supply</span><h2>Kandidat alternatif</h2></div></div>
     ${table('Availability bukan readiness', ['Kandidat','ETA','Tiba sebelum shortage?','Quantity','Hasil review'], options.unqualified_candidates.map(option=>{
       const comparison = c.candidate_comparisons.find(item=>item.candidate_id===option.candidate_id);
       return `<tr><td>${escape(option.candidate_id)}</td><td>${escape(option.ready_date)}</td><td>${option.arrives_by_need ? 'Ya' : 'Tidak'}</td><td>${option.available_quantity} EA</td><td>${badge(comparison?.decision || 'UNKNOWN')}</td></tr>`;
     }))}
-    <h2>Production orders terdampak</h2>
+    <div class="section-heading"><div><span class="eyebrow">Baseline exposure</span><h2>Production orders terdampak</h2></div></div>
     ${table('Dampak baseline sebelum recovery', ['Order','Assembly','Scheduled','Required','Unserved'], exposure.affected_orders.map(order=>`<tr><td>${escape(order.order_id)}</td><td>${escape(order.product_id)}</td><td>${escape(order.scheduled_date)}</td><td>${order.required_material_quantity} EA</td><td>${order.unserved_quantity} EA</td></tr>`))}`;
 }
 
@@ -302,21 +336,21 @@ function sourceLink(source) {
 }
 
 function evidenceTab() {
-  return `<h2>Requirement-level evidence</h2><p>Setiap status berasal dari comparison backend. Bukti yang belum cukup tetap UNKNOWN.</p>${view.current.candidate_comparisons.map(candidate=>`
-    <h3>${escape(candidate.candidate_id)} · ${badge(candidate.decision)}</h3>
+  return `<section class="tab-heading"><div><span class="eyebrow">Deterministic comparison</span><h2>Requirement-level evidence</h2><p>Setiap status berasal dari comparison backend. Bukti yang belum cukup tetap ditandai belum diketahui.</p></div></section><div class="candidate-stack">${view.current.candidate_comparisons.map(candidate=>`
+    <section class="candidate-card"><header><div><span class="eyebrow">Candidate</span><h3>${escape(candidate.candidate_id)}</h3></div>${badge(candidate.decision)}</header>
     ${table('Evidence ' + candidate.candidate_id, ['Requirement','Dibutuhkan','Observed','Status / alasan','Sumber'], candidate.rows.map(row=>`<tr>
       <td>${escape(row.requirement_name)}<small>${escape(row.requirement_id)}</small></td><td>${escape(row.required_operator)} ${escape(row.required_value)} ${escape(row.required_unit || '')}</td>
       <td>${row.observed_value===null ? 'Belum diketahui' : escape(row.observed_value)} ${escape(row.observed_unit || '')}</td><td>${badge(row.status)}<small>${escape(row.reason)}</small></td>
-      <td>${row.evidence.length ? row.evidence.map(sourceLink).join('') : 'Tidak ada applicable evidence'}</td></tr>`))}`).join('')}`;
+      <td>${row.evidence.length ? row.evidence.map(sourceLink).join('') : 'Tidak ada applicable evidence'}</td></tr>`))}</section>`).join('')}</div>`;
 }
 
 function scenariosTab() {
   const c = view.current;
-  return `<h2>Perbandingan recovery</h2><p>Feasibility berdasarkan timeline dan coverage; setiap opsi masih membutuhkan otorisasi tindakan yang sesuai.</p>
-    ${table('Biaya dalam unit moneter simulasi; currency belum ditentukan', ['Opsi','Siap (WIB)','Protected','Sisa exposed','Biaya tambahan','State'], c.simulation.scenarios.map(item=>`<tr>
-      <td>${escape(item.name)}</td><td>${time(item.ready_at)}<small>${item.ready_by_shortage===null ? 'Timing unresolved' : item.ready_by_shortage ? 'Siap paling lambat saat shortage' : 'Siap setelah shortage'}</small></td>
-      <td>${item.protected_quantity} EA</td><td>${item.remaining_exposed_quantity} EA / ${item.remaining_exposed_order_count} orders</td><td>${(item.incremental_cost_cents / 100).toLocaleString('id-ID')}</td><td>${badge(item.state)}<small>${escape(item.unresolved_conditions.join('; '))}</small></td></tr>`))}
-    <h2>Qualification timeline</h2><p>Shortage: ${time(c.simulation.shortage_at)}. Ini jadwal qualification, bukan hasil test yang sudah lulus.</p>
+  return `<section class="tab-heading"><div><span class="eyebrow">Recovery simulation</span><h2>Perbandingan recovery</h2><p>Bandingkan coverage, timeline, dan biaya. Feasibility tidak menggantikan authorization.</p></div><span class="data-context">Shortage · ${time(c.simulation.shortage_at)}</span></section>
+    <div class="scenario-grid">${c.simulation.scenarios.map((item,index)=>`<article class="scenario-card ${index===0 ? 'featured' : ''}"><header><span>Opsi ${index+1}</span>${badge(item.state)}</header><h3>${escape(item.name)}</h3>
+      <dl><div><dt>Siap</dt><dd>${time(item.ready_at)}</dd></div><div><dt>Protected</dt><dd>${item.protected_quantity} EA</dd></div><div><dt>Sisa exposed</dt><dd>${item.remaining_exposed_quantity} EA · ${item.remaining_exposed_order_count} orders</dd></div><div><dt>Biaya tambahan</dt><dd>${(item.incremental_cost_cents / 100).toLocaleString('id-ID')} unit</dd></div></dl>
+      <p>${item.ready_by_shortage===null ? 'Timing belum terselesaikan.' : item.ready_by_shortage ? 'Siap paling lambat saat shortage.' : 'Siap setelah shortage.'}</p>${item.unresolved_conditions.length ? `<small>${escape(item.unresolved_conditions.join('; '))}</small>` : ''}</article>`).join('')}</div>
+    <div class="section-heading"><div><span class="eyebrow">Dependency schedule</span><h2>Qualification timeline</h2></div><p>Jadwal qualification, bukan hasil test yang sudah lulus.</p></div>
     ${c.qualification_graphs.map(graph=>`<h3>${escape(graph.candidate_id)} · selesai terjadwal ${time(graph.qualification_complete)}</h3>
       ${table('Task dependencies ' + graph.candidate_id, ['Task','Mulai','Selesai','Durasi kerja','Dependency / resource'], graph.schedules.map(task=>`<tr><td>${escape(task.name)}<small>${badge(task.status)}</small></td><td>${time(task.start_time)}</td><td>${time(task.end_time)}</td><td>${escape(task.duration_hours ?? 'Unknown')} jam</td><td>${escape(task.predecessor_ids.join(', ') || 'Tidak ada')}<small>${escape(task.required_resource || 'Tanpa resource kalender')}</small></td></tr>`))}`).join('') || '<p>Qualification plan belum tersedia.</p>'}`;
 }
@@ -324,14 +358,14 @@ function scenariosTab() {
 function approvalsTab() {
   const targets = view.qualification_targets;
   const mayApprove = view.can_approve && view.sources_current && targets.length;
-  return `<h2>Review dan authorization</h2><p>Approval mengizinkan pembuatan satu mock qualification task untuk target dan case version yang direview. Ini tidak memberikan production release.</p>
-    ${mayApprove ? `<form id="approve" class="panel"><div><label for="target">Qualification target</label><select id="target" name="target">${targets.map((item,index)=>`<option value="${index}">${escape(item.candidate_id)} · ${escape(item.task_name)} · ${escape(item.requirement_id)}</option>`).join('')}</select></div><p>Anda menyetujui Case Version ${view.current.case_version}. Approval berlaku 8 jam.</p><button type="submit">Approve qualification task</button></form>` : `<p class="notice">${!view.can_approve ? 'Role Anda tidak dapat menyetujui qualification task. Login sebagai Engineering Reviewer atau Quality Engineer.' : !view.sources_current ? 'Sumber berubah. Investigasi ulang sebelum approval.' : 'Tidak ada qualification target yang berlaku.'}</p>`}
-    <h3>Approval records</h3>
+  return `<section class="tab-heading"><div><span class="eyebrow">Human control point</span><h2>Review dan authorization</h2><p>Approval hanya mengizinkan pembuatan satu mock qualification task. Production release tetap terblokir.</p></div></section>
+    ${mayApprove ? `<form id="approve" class="panel approval-panel"><div><span class="eyebrow">Approval scope</span><h3>Authorize qualification task</h3><label for="target">Qualification target</label><select id="target" name="target">${targets.map((item,index)=>`<option value="${index}">${escape(item.candidate_id)} · ${escape(item.task_name)} · ${escape(item.requirement_id)}</option>`).join('')}</select></div><div class="approval-summary"><span>Case version</span><strong>${view.current.case_version}</strong><span>Validity</span><strong>8 jam</strong></div><button type="submit">Approve qualification task</button></form>` : `<p class="notice">${!view.can_approve ? 'Role Anda tidak dapat menyetujui qualification task. Login sebagai Engineering Reviewer atau Quality Engineer.' : !view.sources_current ? 'Sumber berubah. Investigasi ulang sebelum approval.' : 'Tidak ada qualification target yang berlaku.'}</p>`}
+    <div class="section-heading"><div><span class="eyebrow">Authorization trail</span><h3>Approval records</h3></div></div>
     ${view.approvals.length ? table('Authorization bound to case version', ['Approval / target','Reviewer','Versi','Berlaku sampai','Pemeriksaan','Tindakan'], view.approvals.map(item=>`<tr>
       <td>${escape(item.approval_id)}<small>${escape(item.scope.candidate_id)} · ${escape(item.scope.requirement_id)}</small></td><td>${escape(item.approver_id)}<small>${escape(item.approver_role)}</small></td>
       <td>${item.case_version}</td><td>${time(item.expires_at)}</td><td>${badge(item.validation.status)}<small>${escape(item.validation.reasons.join(', '))}</small></td>
       <td><button class="secondary" data-execute="${escape(item.approval_id)}" ${item.validation.status!=='AUTHORIZED' ? 'disabled data-disabled="true"' : ''}>Create mock QMS task</button></td></tr>`)) : '<p>Belum ada approval. Review bukti dan skenario sebelum menyetujui qualification task.</p>'}
-    <h3>Qualification tasks &amp; receipts</h3>
+    <div class="section-heading"><div><span class="eyebrow">Execution receipts</span><h3>Qualification tasks &amp; receipts</h3></div></div>
     ${view.tasks.length ? table('Mock QMS tasks tersimpan', ['QMS ID','Kandidat / requirement','Task','Dibuat','Status'], view.tasks.map(task=>`<tr><td>${escape(task.qms_task_id)}</td><td>${escape(task.candidate_id)}<small>${escape(task.requirement_id)}</small></td><td>${escape(task.task_name)}</td><td>${time(task.created_at)}</td><td>${badge(task.status)}</td></tr>`)) : '<p>Belum ada QMS task yang dibuat.</p>'}
     ${view.case.actions.map(action=>`<details><summary>Receipt ${escape(action.external_reference)}</summary><dl><dt>Action</dt><dd>${escape(action.action_id)}</dd><dt>Reviewed version</dt><dd>${action.case_version}</dd><dt>Case hash</dt><dd><code>${escape(action.case_hash)}</code></dd><dt>Idempotency key</dt><dd><code>${escape(action.idempotency_key)}</code></dd></dl></details>`).join('')}`;
 }

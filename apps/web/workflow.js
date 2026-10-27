@@ -3,6 +3,7 @@
 (() => {
   'use strict';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const statusText = value => ({RECORDED:'Terekam',NOT_RUN:'Belum terekam',READ:'Dibaca',ADVISORY:'Advisory',VERSIONED:'Terversi',HUMAN_GATE:'Persetujuan manusia',RECEIPT_RECORDED:'Receipt tersimpan',NOT_EXECUTED:'Belum dijalankan',MATCH:'Sesuai',MISMATCH:'Tidak sesuai',UNKNOWN:'Belum diketahui',BLOCKED:'Terblokir',BLOCKED_PENDING_EVIDENCE_OR_RELEASE:'Menunggu bukti / release',REJECTED_HARD_MISMATCH:'Ditolak · spesifikasi tidak sesuai'}[value] || String(value ?? '').replaceAll('_',' ').toLowerCase());
   const json = value => esc(JSON.stringify(value, null, 2));
   const nodeWidth = 224, nodeHeight = 132;
   const descriptions = {
@@ -86,7 +87,7 @@
   function nodeHTML(node, index) {
     return `<button type="button" class="flow-node flow-${esc(node.kind)}" data-flow-node="${index}" aria-pressed="false">
       <span class="flow-node-head">${icon(node.kind)}<span>${esc(node.owner)}</span><span class="flow-sequence">${index+1}</span></span>
-      <strong>${esc(node.title)}</strong><span class="flow-node-target">${esc(node.subtitle)}</span><span class="flow-state">${esc(node.status)}</span></button>`;
+      <strong>${esc(node.title)}</strong><span class="flow-node-target">${esc(node.subtitle)}</span><span class="flow-state">${esc(statusText(node.status))}</span></button>`;
   }
   function render(view, status) {
     const saved = view.latest_ai_review;
@@ -133,7 +134,7 @@
     if (node.kind==='discovery') return `<p>Approved coverage: <strong>${esc(value.approved_covered_quantity)} / ${esc(value.required_quantity)} EA</strong>.</p><p>Approved recovery cukup: <strong>${value.approved_recovery_sufficient?'Ya':'Belum'}</strong>. Kandidat baru tetap perlu pemeriksaan bukti.</p>`;
     if (node.kind==='evidence') {
       const candidates=value.candidate_comparisons || [value];
-      return candidates.map(candidate=>`<div class="flow-evidence-summary"><strong>${esc(candidate.candidate_id)}</strong><p>${esc(candidate.decision)}</p><ul>${candidate.rows.map(row=>`<li>${esc(row.requirement_name)}: <strong>${esc(row.status)}</strong></li>`).join('')}</ul></div>`).join('');
+      return candidates.map(candidate=>`<div class="flow-evidence-summary"><strong>${esc(candidate.candidate_id)}</strong><p>${esc(statusText(candidate.decision))}</p><ul>${candidate.rows.map(row=>`<li>${esc(row.requirement_name)}: <strong>${esc(statusText(row.status))}</strong></li>`).join('')}</ul></div>`).join('');
     }
     if (node.kind==='qualification') {
       const graphs=Array.isArray(value)?value:[value];
@@ -173,7 +174,7 @@
       root.querySelectorAll('.flow-connection').forEach((path,i)=>path.classList.toggle('flow-connection-selected', i === selected - 1));
       el('flow-step').textContent = `Langkah ${selected+1} / ${nodes.length} · replay catatan`;
       disabled(el('flow-prev'), selected === 0); disabled(el('flow-next'), selected === nodes.length-1);
-      el('flow-inspector').innerHTML = `<div class="flow-detail-title">${icon(node.kind)}<h3>${esc(node.title)}</h3></div><p class="flow-owner">${esc(node.owner)} · ${esc(node.status)}</p><p>${esc(node.explanation)}</p>
+      el('flow-inspector').innerHTML = `<div class="flow-detail-title">${icon(node.kind)}<h3>${esc(node.title)}</h3></div><p class="flow-owner">${esc(node.owner)} · ${esc(statusText(node.status))}</p><p>${esc(node.explanation)}</p>
         <div class="flow-result-summary">${explainResult(node)}</div>
         <details><summary>Konteks snapshot</summary><pre tabindex="0">${json(node.context)}</pre></details><details><summary>Output lengkap${node.kind === 'advisory' ? ' (advisory)' : ' backend'}</summary><pre tabindex="0">${json(node.output)}</pre></details>
         ${node.link ? `<a href="#cases/${encodeURIComponent(view.case.case_id)}/${node.link}">${esc(node.linkText)}</a>` : ''}`;

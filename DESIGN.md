@@ -2,13 +2,13 @@
 name: Material Continuity
 description: Functional review workspace
 colors:
-  ink: "#1b2b39"
-  muted: "#485b6a"
-  accent: "#075d78"
-  line: "#c7d1d8"
+  ink: "#102536"
+  muted: "#5d7180"
+  accent: "#006d87"
+  line: "#d7e0e5"
   surface: "#fff"
-  background: "#f2f5f7"
-  danger: "#8d211d"
+  background: "#eef2f4"
+  danger: "#a12822"
 typography:
   body:
     fontFamily: "system-ui, sans-serif"
@@ -39,15 +39,16 @@ components:
     padding: "8px 16px"
 ---
 
-# Functional review workspace
+# Recovery decision workspace
 
 ## Overview
 
-This records the initial working web surface, not a final visual identity.
-The user explicitly deferred polish in favor of functioning workflows. Keep
-Operate mode: reviewer-oriented navigation, tables, native forms, and readable
-backend facts. The Agent Workflow extends this system with an interactive
-explanation and replay viewer inspired by n8n; it is not a workflow editor.
+The workspace uses an enterprise recovery-control direction: Fiori-style object
+headers and decision summaries, Carbon-style tables and semantic status tags,
+and an inspectable n8n-inspired workflow canvas. The visual hierarchy helps a
+reviewer move from exposure to evidence, scenarios, and human authorization
+without changing the backend decision model. The Agent Workflow remains an
+explanation and replay viewer, not a workflow editor.
 
 Desktop browser flow was exercised through login, evidence, scenarios, approval,
 mock task creation, and reload persistence. Optional OpenAI advisory is available
@@ -58,9 +59,10 @@ remains unavailable; OCR and internet/AWS evidence sources remain unconnected.
 
 ## Colors
 
-Use the existing teal accent for links, primary actions, and selected navigation;
-light neutral surfaces, dark ink, muted supporting text, and thin line dividers
-remain the base. Requirement states include text as well as color.
+Use teal for navigation, links, and primary actions; dark slate for authority and
+decision summaries; and light neutral layers for data-heavy surfaces. Semantic
+amber, red, and green are reserved for critical, negative, and positive states.
+Every state retains a concise text label so color is never the only signal.
 
 Within the workflow viewer, violet identifies OpenAI advisory, amber marks human
 gates, and green identifies mock QMS tasks. Preserve owner and status labels and
@@ -80,7 +82,10 @@ Keep the centered content container (1280px maximum) with (28px) desktop gutters
 and (16px) gutters at widths of (700px) or less. Main navigation remains Overview,
 Recovery Cases, and Documents & Data. Case links/tabs retain Summary & Options,
 Evidence Review, Recovery Scenarios, and Approval & Actions, with Agent Workflow
-added between Summary & Options and Evidence Review. Wrap navigation naturally;
+added between Summary & Options and Evidence Review. Overview uses KPI cards and
+a priority table. Case pages use an object header, release banner, sticky section
+navigation, and a decision brief before detailed tables. Documents keeps uploads
+inside a disclosure so the corpus remains the default focus. Scroll navigation;
 keep accessible table headers/captions and horizontal table scrolling on narrow
 screens. Document revision and corpus tables scroll within their own containers;
 long source text and proposal quotes wrap without widening the page. Keep PDF
@@ -95,8 +100,9 @@ selected node; it must not move the document away from replay controls.
 
 ## Elevation & Depth
 
-Keep flat surfaces with borders and tonal differences, without shadows. The
-canvas dot grid and connector lines explain spatial relationships. A teal
+Use subtle, low-contrast shadows only to separate actionable cards and data
+surfaces from the workspace background; hierarchy still relies primarily on
+borders and tonal differences. The canvas dot grid and connector lines explain spatial relationships. A teal
 selection outline identifies the inspected node; the visible keyboard focus
 outline remains distinct.
 
