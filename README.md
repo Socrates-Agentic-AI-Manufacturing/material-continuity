@@ -9,7 +9,8 @@ The current implementation includes a local web review application over the
 deterministic core and fixture-backed agent workflows. It calculates production
 exposure, checks approved recovery paths, compares candidate evidence, schedules
 qualification, and presents recovery scenarios. Reviewers can approve a scoped
-qualification task and create one mock QMS receipt. Cases, approvals, and tasks
+qualification task, while Production Planners can authorize a ranked resequencing
+scenario and receive a mock receipt. Cases, approvals, and tasks
 persist in SQLite across refreshes and restarts.
 Structured candidate evidence can also be compared deterministically against
 application requirements with revision, applicability, unit, and provenance
@@ -45,7 +46,7 @@ python -m services.web
 
 Open **http://127.0.0.1:8000**. Demo usernames are `quality`, `engineering`, and
 `planner`; the default demo password is `local-demo`. The first two roles can
-approve qualification tasks. Planner can review but cannot approve these tasks.
+approve qualification tasks. Planner can approve only production resequencing.
 Identity/role is resolved by the server session, not supplied by the browser.
 
 This is a localhost-only synthetic demo, not a public production server. Override
@@ -69,10 +70,11 @@ file, for example `--database data/local/second-review.sqlite3`.
 The web application provides:
 
 - Overview and persisted case listing.
+- Interactive delayed-delivery injection with immediate case recalculation.
 - Case summary, approved-path search, candidate evidence, and PDF page links.
-- Scenario comparison and qualification schedule, displayed in WIB.
+- Ranked feasible/conditional scenario comparison and qualification schedule, displayed in WIB.
 - Server-authenticated demo login, scoped version/hash-bound approvals, and mock
-  QMS tasks with persistent receipts and duplicate blocking.
+  QMS tasks or Planner resequencing authorizations with persistent receipts and duplicate blocking.
 - Re-investigation that preserves history and invalidates stale approvals when
   source state changes. Unchanged input does not create a new version.
 - Documents & Data: corpus browser, immutable PDF uploads/revisions, real page

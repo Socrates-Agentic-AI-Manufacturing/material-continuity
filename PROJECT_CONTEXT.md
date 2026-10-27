@@ -1831,7 +1831,7 @@ Project phase: FUNCTIONAL LOCAL WEB MVP
 Proposal: COMPLETE
 Hackathon qualification: FINAL STAGE
 GitHub strategy: DECIDED — one organization, one monorepo
-Implementation: LOCAL REVIEW UI + SQLITE + AUTH + WORKFLOW VIEWER + OPENAI REVIEW + CONTROLLED PDF REVISION/EXTRACTION/REVIEW IMPLEMENTED; cloud and external retrieval remain pending
+Implementation: LOCAL REVIEW UI + SQLITE + AUTH + WORKFLOW VIEWER + MULTI-PROVIDER AI REVIEW + CONTROLLED PDF REVISION/EXTRACTION/REVIEW + CLOUDFOUNDRY/JOULE DEMO INTEGRATION IMPLEMENTED; external enterprise retrieval remains pending
 ```
 
 ## Progress table
@@ -1843,15 +1843,15 @@ Implementation: LOCAL REVIEW UI + SQLITE + AUTH + WORKFLOW VIEWER + OPENAI REVIE
 | GitHub organization strategy | DONE | One org |
 | Repository strategy | DONE | One monorepo |
 | Canonical demo flow | DEFINED | Based on proposal acceptance scenario |
-| Synthetic dataset | DONE | Material, stock, 2 BOMs, 10 production orders, delayed receipt, Candidate A/B/C, approved paths, suppliers, fallbacks, requirements, evidence, qualification tasks, resource calendars, and 12-document corpus defined |
+| Synthetic dataset | DONE | Material, stock, 2 BOMs, 11 production orders, injectable delayed receipt, Candidate A/B/C, approved paths, suppliers, fallbacks, requirements, evidence, qualification tasks, resource calendars, and 12-document corpus defined |
 | Deterministic exposure engine | DONE | Typed dependency-free Python engine, JSON loader, CLI, and 10 passing tests; canonical shortage is 2026-10-04 |
 | Recovery option discovery | DONE | Ordered deterministic search covers network stock through resequencing; approved sufficiency stops candidate escalation; 6 dedicated tests pass |
 | Requirement comparison | DONE | Typed evidence/provenance, deterministic unit conversion, revision/applicability checks, MATCH/MISMATCH/UNKNOWN/BLOCKED, and canonical Candidate A/B decisions; 14 dedicated tests pass |
 | Qualification graph | DONE | Validated DAG, sequential/parallel scheduling, timezone-aware resource calendars, critical path, and unresolved timing propagation; Candidate A completes 2026-10-07T02:00Z |
-| Recovery simulation | DONE | Deterministic timing, quantity coverage, order exposure, cost, unresolved conditions, and non-authorization across three canonical scenarios; 8 dedicated tests pass |
+| Recovery simulation | DONE | Deterministic timing, quantity coverage, order exposure, cost, unresolved conditions, non-authorization, and ranked feasible/conditional groups across three canonical scenarios |
 | Recovery-case versioning | DONE | Immutable typed snapshots, canonical SHA-256 hash chain, no-op detection, source-change increments, and version-bound approval/action storage; 9 dedicated tests pass |
 | Approval gate | DONE | Typed principals/roles/actions; fail-closed identity, scope, expiry, case version/hash, source freshness, and idempotency validation; 11 dedicated tests pass |
-| Action adapter | DONE | Approval-gated mock QMS qualification task, deterministic identifier, version-bound receipt, duplicate-write prevention, and explicit production-release block; 9 dedicated tests pass |
+| Action adapter | DONE | Approval-gated mock QMS qualification task and Planner resequencing authorization, deterministic identifiers, version-bound receipts, duplicate-write prevention, and explicit production-release block |
 | AWS access validation | BLOCKED | Local validation attempted 2026-09-29; AWS CLI/SDK, Region, credentials/profile, and resource IDs are unavailable |
 | S3 document corpus | BLOCKED | Twelve local PDFs and deterministic manifest are ready; S3 upload requires hackathon AWS access |
 | Bedrock Knowledge Base | TODO | P1 |
@@ -1859,7 +1859,10 @@ Implementation: LOCAL REVIEW UI + SQLITE + AUTH + WORKFLOW VIEWER + OPENAI REVIE
 | Evidence Specialist | LOCAL DONE | Guardrailed role prompt, typed output, replaceable retrieval interface, fixture-backed adapter, requirement mapping, gap/procedure detection, and Candidate A/B branches; live Bedrock adapter pending |
 | Recovery Supervisor | LOCAL DONE | Guardrailed role, controlled fixture-backed tool interface, approved-path-first branching, conditional Evidence Specialist calls, case creation, tool trace, and structured summary; live AgentCore runtime pending |
 | OpenAI inference adapter | WEB LIVE VERIFIED | Existing key and gpt-5.4-mini; explicit cost-acknowledged review via web verified (8 calls); local provider now openai; no automatic calls; full reliability/evaluation pending |
-| UI | LOCAL FUNCTIONAL | Overview, case detail/Agent Workflow, evidence/citations, scenarios, approval/receipt/history and controlled PDF upload/review/activation in Documents & Data |
+| SAP AI Core adapter | IMPLEMENTED | OAuth client-credentials and chat-completions tool-call translation; offline fake-token/response/error tests included; live availability remains credential/deployment dependent |
+| Cloud Foundry web deployment | DEMO DEPLOYED | Manifest targets `material-continuity-antek2-rl`; repository documentation records the deployed demo URL. Deployment health was not revalidated in this session |
+| Joule capability | IMPLEMENTED | Read-only `material_continuity` capability calls the deployed backend briefing endpoint; no approval, release, or SAP write tool is exposed |
+| UI | LOCAL FUNCTIONAL | Dashboard overview, delayed-delivery injection, ranked scenarios, role-scoped qualification/resequencing approval and receipts, Agent Workflow, evidence/citations, history, and controlled PDF upload/review/activation |
 | Interactive agent workflow | LOCAL DONE | User-confirmed n8n-like viewer, not editor: node inspector, dotted canvas, zoom/pan, keyboard/list alternative, replay; grouped local map separate from real OpenAI tool order; desktop/mobile browser verified |
 | Advisory review history | LOCAL DONE | Separate SQLite ai_reviews table restores latest completed review without paid rerun; old hash/source state marks archive; decision/approval/task state unchanged |
 | Web API and persistence | LOCAL DONE | Standard-library HTTP adapter; SQLite aggregate/history, scoped approvals and mock tasks; serial read/check/write transactions and unique target keys prevent concurrent duplicate writes |
@@ -3327,8 +3330,11 @@ checks configuration only; it does not verify network/model access.
 SAP AI Core is an AI inference provider, not SAP S/4HANA/MES business data.
 The BTP instructions do not provide stock, BOM, production-order, purchase-order,
 supplier, or quality-management API access. Those still come from local fixtures.
-Joule credentials/capability deployment are also separate and Joule is not yet
-connected to the web backend. AWS services in the proposal remain unconnected:
+Joule remains a separate capability deployment, but it is now connected to the
+web backend through the read-only case briefing endpoint. Commits `44092b8` and
+`04898eb` added the Joule/Cloud Foundry integration and follow-up wiring. The
+capability can report current synthetic exposure and recovery state; it cannot
+approve, release, or write to SAP. AWS services in the proposal remain unconnected:
 S3, Bedrock Knowledge Base, Bedrock model, Lambda, EventBridge, AgentCore
 Runtime/Gateway, CloudWatch, and IAM deployment are still pending.
 
@@ -3366,11 +3372,8 @@ can complete within the call/time limits.
 
 ## Next work items
 
-1. Rotate exposed BTP service keys and fill `.env.local` locally.
-2. Run `python -m services.llm`; then test one explicit AI review from the web.
-3. Add unit tests with a fake SAP token and chat-completion tool-call response.
-4. Deploy the local web app to the Cloud Foundry team space.
-5. Create a Joule capability that calls the deployed backend read-only endpoints.
-6. Obtain separate SAP S/4HANA/MES API details before implementing a SAP data adapter.
-7. Add S3 and Knowledge Base adapters only after document provenance is defined.
-8. Keep all write-back actions behind the existing version/hash/role/expiry/idempotency gate.
+1. Rotate exposed BTP service keys and keep `.env.local`/Cloud Foundry secrets out of Git.
+2. Revalidate one explicit SAP AI Core review and Cloud Foundry/Joule health when credentials are available.
+3. Obtain separate SAP S/4HANA/MES API details before implementing a SAP data adapter.
+4. Add S3 and Knowledge Base adapters only after document provenance is defined.
+5. Keep all write-back actions behind the existing version/hash/role/expiry/idempotency gate.
