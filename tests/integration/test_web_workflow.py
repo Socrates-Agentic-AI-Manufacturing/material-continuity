@@ -162,6 +162,32 @@ class WebWorkflowTests(unittest.TestCase):
         self.assertEqual(200, self.request("POST", "/api/logout", {})[0])
         self.assertEqual(401, self.request("GET", "/api/cases")[0])
 
+    def test_public_dashboard_needs_no_login_and_exposes_only_aggregates(self):
+        self.login()
+        self.approval()
+        self.cookie = self.csrf = ""
+        status, data, _ = self.request("GET", "/api/public/dashboard")
+        self.assertEqual(200, status)
+        case = data["cases"][0]
+        self.assertEqual(("CASE-001", "2026-10-04", 700, 7), (case["case_id"], case["shortage_date"], case["exposed_quantity"], case["exposed_order_count"]))
+        self.assertFalse(case["production_release_authorized"])
+        self.assertIn({"candidate_id": "CAND-B", "decision": "REJECTED_HARD_MISMATCH"}, case["candidates"])
+        kinds = {item["kind"] for item in data["notifications"]}
+        self.assertTrue({"SHORTAGE", "COVERAGE_GAP", "CANDIDATE_REJECTED", "EVIDENCE_GAP", "RELEASE_BLOCKED"} <= kinds)
+        serialized = json.dumps(data)
+        for private in ("quality", "approval_id", "case_hash", "csrf", "idempotency"):
+            self.assertNotIn(private, serialized)
+
+    def test_public_dashboard_flags_changed_sources(self):
+        source_file = self.fixtures / "suppliers" / "candidate_availability.json"
+        sources = json.loads(source_file.read_text(encoding="utf-8"))
+        sources[0]["quoted_unit_price_cents"] += 10
+        source_file.write_text(json.dumps(sources), encoding="utf-8")
+        status, data, _ = self.request("GET", "/api/public/dashboard")
+        self.assertEqual(200, status)
+        self.assertFalse(data["cases"][0]["sources_current"])
+        self.assertIn("SOURCES_CHANGED", {item["kind"] for item in data["notifications"]})
+
     def test_bad_password_never_creates_session(self):
         status, data, headers = self.request("POST", "/api/login", {"username": "quality", "password": "wrong"})
         self.assertEqual(401, status)

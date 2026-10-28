@@ -78,50 +78,200 @@ async function perform(action) {
   }
 }
 
+const ICONS = {
+  bell:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10a6 6 0 1 1 12 0v3.4l1.6 2.6H4.4L6 13.4Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  help:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.6"/><path d="M12 16.8v.2"/></svg>',
+  person:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5a7 7 0 0 1 14 0"/></svg>',
+};
+const SEVERITY = {
+  CRITICAL:['negative','Kritis'], NEGATIVE:['negative','Ditolak'], WARNING:['critical','Perhatian'], INFORMATION:['information','Info'],
+};
+const ROLE_GUIDE = [
+  {key:'public', title:'Publik', username:null, tagline:'Memantau risiko material tanpa login.',
+    can:['Melihat dashboard ringkas dan notifikasi risiko','Melihat status kandidat dan rekomendasi skenario teratas'],
+    cannot:['Membuka detail bukti dan dokumen','Memberi approval atau membuat tindakan'],
+    flow:[['Buka dashboard publik','Lihat kapan stok habis dan berapa produksi terdampak.','#public'],['Cek notifikasi','Klik ikon lonceng untuk melihat risiko yang perlu ditindaklanjuti.','#public'],['Login bila perlu detail','Gunakan akun sesuai peran untuk review bukti dan approval.','#login']]},
+  {key:'quality', title:'Quality Engineer', username:'quality', tagline:'Penjaga mutu: memastikan bukti dan uji kualifikasi sah.',
+    can:['Upload, ekstrak, review, dan aktifkan PDF bukti kandidat','Approve qualification task lalu membuat mock QMS task','Inject delayed delivery dan investigasi ulang kasus'],
+    cannot:['Approve production resequencing','Merilis material ke produksi'],
+    flow:[['Pantau risiko','Overview menunjukkan shortage terdekat dan approval yang menunggu.','#overview'],['Periksa bukti kandidat','Evidence Review: MATCH, MISMATCH, atau UNKNOWN per requirement, lengkap dengan halaman sumber.','#cases/CASE-001/evidence'],['Perbarui dokumen bukti','Documents & Data: upload revisi datasheet, review klaim, lalu aktifkan revisi.','#documents'],['Investigasi ulang','Kembali ke kasus dan tekan Investigasi ulang agar versi kasus mengikuti bukti terbaru.','#cases/CASE-001/summary'],['Approve qualification','Approval & Actions: approve qualification task lalu buat mock QMS task.','#cases/CASE-001/approvals']]},
+  {key:'engineering', title:'Engineering Reviewer', username:'engineering', tagline:'Ahli teknis: menilai kesesuaian spesifikasi kandidat.',
+    can:['Menilai ukuran, beban, dan pelumas kandidat terhadap requirement','Upload, ekstrak, review, dan aktifkan PDF bukti kandidat','Approve qualification task lalu membuat mock QMS task'],
+    cannot:['Approve production resequencing','Merilis material ke produksi'],
+    flow:[['Buka kasus','Summary & Options: pahami exposure dan opsi approved yang sudah diperiksa.','#cases/CASE-001/summary'],['Bandingkan spesifikasi','Evidence Review: kandidat dengan hard mismatch otomatis ditolak.','#cases/CASE-001/evidence'],['Cek jadwal qualification','Recovery Scenarios: lihat kapan kandidat benar-benar siap, bukan hanya kapan tiba.','#cases/CASE-001/scenarios'],['Approve qualification','Approval & Actions: setujui uji untuk requirement yang belum terbukti.','#cases/CASE-001/approvals']]},
+  {key:'planner', title:'Production Planner', username:'planner', tagline:'Perencana produksi: menjaga jadwal tetap berjalan.',
+    can:['Inject delayed delivery dan investigasi ulang kasus','Approve production resequencing lalu membuat mock authorization','Membaca seluruh kasus, bukti, dan dokumen'],
+    cannot:['Upload atau mengaktifkan dokumen bukti','Approve qualification task'],
+    flow:[['Pantau risiko','Overview menunjukkan shortage terdekat dan order terdampak.','#overview'],['Simulasikan keterlambatan','Summary: inject delayed delivery untuk melihat dampak terhadap exposure.','#cases/CASE-001/summary'],['Bandingkan skenario','Recovery Scenarios: ranking berdasarkan coverage, waktu, dan biaya.','#cases/CASE-001/scenarios'],['Approve resequencing','Approval & Actions: setujui resequencing lalu buat mock authorization.','#cases/CASE-001/approvals']]},
+];
+const CASE_FLOW = ['Disruption terdeteksi','Hitung exposure','Cek opsi approved','Review bukti kandidat','Jadwal qualification','Bandingkan skenario','Approval manusia','Mock action receipt'];
+let publicData = null;
+
+function roleCard(role, withButton) {
+  return `<article class="role-card role-${role.key}"><header><span class="role-icon" aria-hidden="true">${role.username ? escape(role.title.slice(0,1)) : ICONS.person}</span><div><h3>${escape(role.title)}</h3><small>${role.username ? 'Username: <code>' + escape(role.username) + '</code>' : 'Tanpa login'}</small></div></header>
+    <p>${escape(role.tagline)}</p>
+    <ul class="role-can">${role.can.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>
+    <ul class="role-cannot">${role.cannot.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>
+    ${withButton ? (role.username ? `<button type="button" class="secondary" data-login-role="${escape(role.username)}">Masuk sebagai ${escape(role.title)}</button>` : '<a class="button-link secondary" href="#public">Buka dashboard publik</a>') : ''}</article>`;
+}
+
 function showLogin() {
   if (workflowCleanup) { workflowCleanup(); workflowCleanup = null; }
-  document.querySelector('#navigation').hidden = true;
-  document.querySelector('#identity').textContent = '';
+  shell('login');
   content.innerHTML = `<section class="login-shell"><div class="login-context">
     <span class="eyebrow">Material continuity workspace</span>
     <h1>Keputusan pemulihan material yang dapat ditelusuri.</h1>
     <p>Satukan exposure produksi, bukti teknis, qualification plan, dan human approval dalam satu review workspace.</p>
-    <ul class="login-benefits"><li>Evidence-bound decision</li><li>Versioned investigation</li><li>Human-controlled release</li></ul>
-    <p class="login-safety">Demo lokal · data sintetis · production release tetap dikendalikan manusia</p>
+    <div class="login-links"><a class="button-link" href="#guide">Panduan pengguna</a><a class="button-link secondary" href="#public">Lihat dashboard publik</a></div>
+    <p class="login-safety">Demo · data sintetis · production release tetap dikendalikan manusia</p>
     </div><div class="panel login-card"><span class="eyebrow">Akses workspace</span><h2>Login untuk review kasus</h2>
-    <p>Gunakan akun demo sesuai peran Anda. Hak tindakan ditentukan oleh server.</p>
+    <p>Pilih peran sesuai tugas Anda. Hak tindakan ditentukan oleh server, bukan browser.</p>
     <form id="login"><div><label for="username">Peran demo</label><select id="username" name="username">
       <option value="quality">quality — Quality Engineer</option><option value="engineering">engineering — Engineering Reviewer</option><option value="planner">planner — Production Planner</option>
     </select></div><div><label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
     <button type="submit">Masuk ke workspace <span aria-hidden="true">→</span></button></form>
-    <small>Password demo localhost: <code>local-demo</code></small></div></section>`;
+    <small>Password demo: <code>local-demo</code></small></div></section>
+    <section class="role-section" aria-labelledby="role-heading"><div class="section-heading"><div><span class="eyebrow">Siapa melakukan apa</span><h2 id="role-heading">Peran di Material Continuity</h2></div><p><a href="#guide">Lihat alur lengkap per peran →</a></p></div>
+    <div class="role-grid">${ROLE_GUIDE.map(role=>roleCard(role, true)).join('')}</div></section>`;
   document.querySelector('#login').addEventListener('submit', event=>{
     event.preventDefault();
     const form = new FormData(event.target);
     perform(async()=>{
       session = await api('/api/login', {username:form.get('username'), password:form.get('password')});
       notify('Login berhasil.');
-      await route();
+      if (location.hash === '#login') location.hash = '#overview';
+      else await route();
     });
   });
+  document.querySelectorAll('[data-login-role]').forEach(button=>button.addEventListener('click', ()=>{
+    document.querySelector('#username').value = button.dataset.loginRole;
+    document.querySelector('#password').focus();
+    document.querySelector('.login-card').scrollIntoView({block:'center'});
+  }));
+}
+
+function navItems() {
+  return session
+    ? [['overview','Overview'],['cases','Recovery Cases'],['documents','Documents & Data'],['joule','Joule Assistant'],['public','Dashboard Publik'],['guide','Panduan']]
+    : [['public','Dashboard Publik'],['guide','Panduan Pengguna'],['login','Login']];
 }
 
 function shell(section) {
-  document.querySelector('#navigation').hidden = false;
-  document.querySelector('#identity').innerHTML = `<div class="identity"><span class="avatar" aria-hidden="true">${escape(String(session.user_id || '?').slice(0,1).toUpperCase())}</span><span><strong>${escape(session.user_id)}</strong><small>${escape(roleLabel(session.role))}</small></span><button id="logout" class="ghost">Keluar</button></div>`;
-  document.querySelector('#logout').onclick = ()=>perform(async()=>{
-    await api('/api/logout', {}); session = null; showLogin(); notify('Logout berhasil.');
+  const items = navItems();
+  const nav = document.querySelector('#navigation');
+  nav.hidden = false;
+  nav.innerHTML = items.map(([key,label])=>`<a href="#${key}" ${key===section ? 'aria-current="page"' : ''}>${label}</a>`).join('');
+  document.querySelector('#shell-home').setAttribute('href', session ? '#overview' : '#public');
+  const initial = escape(String(session?.user_id || '?').slice(0,1).toUpperCase());
+  const profile = session
+    ? `<button class="shell-avatar" type="button" data-popover="profile-popover" aria-expanded="false" aria-controls="profile-popover" aria-label="Profil ${escape(session.user_id)}">${initial}</button>
+       <div class="popover profile-popover" id="profile-popover" role="dialog" aria-label="Profil" hidden><div class="popover-head"><span class="shell-avatar large" aria-hidden="true">${initial}</span><div><strong>${escape(session.user_id)}</strong><small>${escape(roleLabel(session.role))}</small></div></div>
+       <a class="popover-item" href="#guide">Panduan peran saya</a><button id="logout" class="popover-item" type="button">Keluar</button></div>`
+    : `<a class="shell-login" href="#login">Login</a>`;
+  document.querySelector('#shell-actions').innerHTML = `
+    <button class="shell-icon" type="button" id="shell-notifications" data-popover="notification-popover" aria-expanded="false" aria-controls="notification-popover" aria-label="Notifikasi">${ICONS.bell}<span class="shell-count" id="notification-count" hidden></span></button>
+    <div class="popover notification-popover" id="notification-popover" role="dialog" aria-label="Notifikasi" hidden><div class="popover-title"><strong>Notifikasi</strong><a href="#public">Lihat dashboard</a></div><div id="notification-list"><p class="popover-empty">Memuat notifikasi…</p></div></div>
+    <button class="shell-icon" type="button" data-popover="menu-popover" aria-expanded="false" aria-controls="menu-popover" aria-label="Navigasi">${ICONS.menu}</button>
+    <div class="popover menu-popover" id="menu-popover" role="dialog" aria-label="Navigasi" hidden><span class="popover-group">Navigasi</span>${items.map(([key,label])=>`<a class="popover-item" href="#${key}" ${key===section ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</div>
+    <a class="shell-icon" href="#guide" aria-label="Panduan pengguna" title="Panduan pengguna">${ICONS.help}</a>
+    ${profile}`;
+  const logout = document.querySelector('#logout');
+  if (logout) logout.onclick = ()=>perform(async()=>{
+    await api('/api/logout', {}); session = null; location.hash = '#login'; await route(); notify('Logout berhasil.');
   });
-  document.querySelectorAll('#navigation a').forEach(link=>{
-    if (link.hash === '#' + section) link.setAttribute('aria-current','page');
-    else link.removeAttribute('aria-current');
+  // The public dashboard loads the same payload itself and then renders the bell.
+  if (section !== 'public') refreshNotifications();
+}
+
+async function refreshNotifications() {
+  try { publicData = await api('/api/public/dashboard'); }
+  catch (error) { publicData = null; }
+  renderNotifications();
+}
+
+function notificationItem(item) {
+  const [tone,label] = SEVERITY[item.severity] || ['neutral','Info'];
+  return `<li class="notification ${tone}"><span class="notification-dot" aria-hidden="true"></span><div><strong>${escape(item.title)}</strong><p>${escape(item.detail)}</p><small>${escape(label)} · ${escape(item.case_id)} · ${escape(item.material_id)}</small></div></li>`;
+}
+
+function renderNotifications() {
+  const list = document.querySelector('#notification-list');
+  const count = document.querySelector('#notification-count');
+  const button = document.querySelector('#shell-notifications');
+  if (!list || !count || !button) return;
+  const items = publicData?.notifications || [];
+  const urgent = items.filter(item=>item.severity !== 'INFORMATION').length;
+  count.textContent = urgent > 9 ? '9+' : String(urgent);
+  count.hidden = !urgent;
+  button.setAttribute('aria-label', `Notifikasi, ${urgent} perlu perhatian`);
+  list.innerHTML = publicData ? (items.length ? `<ul class="notification-list">${items.map(notificationItem).join('')}</ul>` : '<p class="popover-empty">Tidak ada notifikasi.</p>') : '<p class="popover-empty">Notifikasi tidak dapat dimuat.</p>';
+}
+
+function closePopovers(except) {
+  document.querySelectorAll('.popover').forEach(panel=>{
+    if (panel.id === except) return;
+    panel.hidden = true;
+    document.querySelector(`[data-popover="${panel.id}"]`)?.setAttribute('aria-expanded','false');
   });
+}
+
+function publicDashboardHTML(data) {
+  const cases = data.cases;
+  const first = cases[0];
+  const totalExposed = cases.reduce((sum,item)=>sum + Number(item.exposed_quantity || 0),0);
+  const totalOrders = cases.reduce((sum,item)=>sum + Number(item.exposed_order_count || 0),0);
+  const urgent = data.notifications.filter(item=>item.severity !== 'INFORMATION');
+  return `<section class="page-heading"><div><span class="eyebrow">Public monitoring</span><h1>Dashboard Material Continuity</h1>
+      <p>Ringkasan risiko material untuk semua pihak. Detail bukti dan approval tersedia setelah login.</p></div>
+      <span class="data-context">Data sintetis · diperbarui ${time(data.generated_at)}</span></section>
+    <section class="metric-grid overview-metrics" aria-label="Ringkasan risiko publik">
+      <article class="metric critical"><span>Stok habis</span><strong>${escape(date(first?.shortage_date))}</strong><small>shortage terdekat</small></article>
+      <article class="metric critical"><span>Produksi terdampak</span><strong>${totalExposed.toLocaleString('id-ID')} <em>EA</em></strong><small>${totalOrders} production order</small></article>
+      <article class="metric"><span>Approved coverage</span><strong>${first ? `${first.approved_covered_quantity} / ${first.required_quantity}` : '—'} <em>EA</em></strong><small>opsi approved yang tepat waktu</small></article>
+      <article class="metric primary"><span>Perlu perhatian</span><strong>${urgent.length}</strong><small>notifikasi aktif</small></article></section>
+    <div class="public-layout"><section class="public-panel" aria-labelledby="public-alerts"><div class="public-panel-head"><h2 id="public-alerts">Notifikasi</h2><span>${data.notifications.length} item</span></div>
+      ${data.notifications.length ? `<ul class="notification-list">${data.notifications.map(notificationItem).join('')}</ul>` : '<p class="popover-empty">Tidak ada notifikasi.</p>'}</section>
+    <div class="public-cases">${cases.map(item=>`<section class="public-panel" aria-label="Kasus ${escape(item.case_id)}"><div class="public-panel-head"><div><span class="eyebrow">${escape(item.case_id)} · Versi ${item.case_version}</span><h2>${escape(item.material_id)}</h2></div>${badge(item.status)}</div>
+      <dl class="public-facts"><div><dt>Stok usable</dt><dd>${item.usable_stock} EA</dd></div><div><dt>Shortage</dt><dd>${escape(date(item.shortage_date))}</dd></div><div><dt>QMS task dibuat</dt><dd>${item.qualification_tasks_created}</dd></div><div><dt>Production release</dt><dd>${badge('BLOCKED')}</dd></div></dl>
+      <h3>Kandidat pengganti</h3><ul class="candidate-chips">${item.candidates.map(candidate=>`<li><strong>${escape(candidate.candidate_id)}</strong>${badge(candidate.decision)}</li>`).join('')}</ul>
+      ${item.top_scenario ? `<h3>Rekomendasi skenario teratas</h3><div class="top-scenario"><div><strong>${escape(item.top_scenario.name)}</strong>${badge(item.top_scenario.state)}</div><p>${escape(item.top_scenario.rank_reason)}</p></div>` : ''}
+      ${!item.sources_current ? '<p class="notice danger">Sumber data berubah. Kasus perlu diinvestigasi ulang.</p>' : ''}
+      <p class="public-cta">${session ? `<a class="button-link" href="#cases/${encodeURIComponent(item.case_id)}/summary">Buka kasus</a>` : '<a class="button-link" href="#login">Login untuk review detail</a>'}</p></section>`).join('') || '<div class="empty-state"><strong>Belum ada kasus aktif</strong></div>'}</div></div>`;
+}
+
+async function showPublicDashboard() {
+  publicData = await api('/api/public/dashboard');
+  renderNotifications();
+  content.innerHTML = publicDashboardHTML(publicData);
+}
+
+function guideHTML() {
+  const mine = session ? ROLE_GUIDE.find(role=>role.username===session.user_id) : null;
+  const ordered = mine ? [mine, ...ROLE_GUIDE.filter(role=>role!==mine)] : ROLE_GUIDE;
+  return `<section class="page-heading"><div><span class="eyebrow">User guide</span><h1>Panduan pengguna</h1>
+      <p>Material Continuity membantu pabrik memutuskan apakah komponen pengganti dapat dipakai tepat waktu, dengan bukti yang dapat ditelusuri dan persetujuan manusia.</p></div>
+      ${session ? `<span class="data-context">Login sebagai ${escape(roleLabel(session.role))}</span>` : '<a class="button-link" href="#login">Login</a>'}</section>
+    <section class="public-panel"><div class="public-panel-head"><h2>Alur kasus</h2><span>Dari disruption sampai tindakan</span></div>
+      <ol class="case-flow">${CASE_FLOW.map((step,index)=>`<li><span>${index+1}</span>${escape(step)}</li>`).join('')}</ol>
+      <p class="muted">AI membaca dokumen dan menjelaskan. Kode menghitung dan menegakkan aturan. Manusia memberi approval. Production release selalu tetap di tangan manusia.</p></section>
+    <div class="guide-roles">${ordered.map(role=>`<section class="public-panel guide-role ${role===mine ? 'is-mine' : ''}" aria-label="Panduan ${escape(role.title)}">
+      ${role===mine ? '<span class="guide-mine">Peran Anda</span>' : ''}${roleCard(role, false)}
+      <h3>Alur kerja</h3><ol class="guide-steps">${role.flow.map(([title,detail,link])=>`<li><a href="${link}"><strong>${escape(title)}</strong><span>${escape(detail)}</span></a></li>`).join('')}</ol></section>`).join('')}</div>`;
+}
+
+function showGuide() {
+  content.innerHTML = guideHTML();
 }
 
 async function route() {
   if (workflowCleanup) { workflowCleanup(); workflowCleanup = null; }
+  closePopovers();
+  const parts = (location.hash || (session ? '#overview' : '#login')).slice(1).split('/');
+  if (parts[0] === 'public') { shell('public'); return showPublicDashboard(); }
+  if (parts[0] === 'guide') { shell('guide'); return showGuide(); }
   if (!session) { showLogin(); return; }
-  const parts = (location.hash || '#overview').slice(1).split('/');
+  if (parts[0] === 'login') { location.hash = '#overview'; return; }
   const section = ['overview','cases','documents','joule'].includes(parts[0]) ? parts[0] : 'overview';
   shell(section);
   if (section === 'joule') return showJoule();
@@ -426,6 +576,25 @@ function audit() {
 window.addEventListener('hashchange', ()=>{
   if (busy) routePending = true;
   else perform(route);
+});
+document.addEventListener('click', event=>{
+  const toggle = event.target.closest('[data-popover]');
+  if (toggle) {
+    const panel = document.getElementById(toggle.dataset.popover);
+    const open = panel.hidden;
+    closePopovers(panel.id);
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    return;
+  }
+  if (!event.target.closest('.popover') || event.target.closest('.popover a')) closePopovers();
+});
+document.addEventListener('keydown', event=>{
+  if (event.key !== 'Escape') return;
+  const open = document.querySelector('.popover:not([hidden])');
+  if (!open) return;
+  closePopovers();
+  document.querySelector(`[data-popover="${open.id}"]`)?.focus();
 });
 perform(async()=>{
   try { session = await api('/api/session'); }

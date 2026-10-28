@@ -98,6 +98,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if not mutation and path == "/api/health":
             self.json_response(200, {"status": "ok", "mode": "local-synthetic", "llm_configured": app.llm_settings.status()["configured"]})
             return
+        if not mutation and path == "/api/public/dashboard":
+            self.json_response(200, app.public_dashboard())
+            return
         if not mutation and path == "/api/joule/exposure":
             expected_user = os.environ.get("MATERIAL_CONTINUITY_JOULE_USER", "")
             expected_password = os.environ.get("MATERIAL_CONTINUITY_JOULE_PASSWORD", "")
@@ -244,7 +247,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' https://ui5.sap.com; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         if cookie:
             self.send_header("Set-Cookie", cookie)
         self.end_headers()

@@ -92,12 +92,13 @@ has been assumed.
 
 ## HTTP interface
 
-All API calls except health/login require the session cookie. POST requests after
+All API calls except health, login and the public dashboard require the session cookie. POST requests after
 login also require the returned `csrf_token` in `X-CSRF-Token`.
 
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | Local demo status |
+| `GET /api/public/dashboard` | Unauthenticated aggregate dashboard and derived notifications (no identities, hashes or approval IDs) |
 | `POST /api/login` | Demo username/password login |
 | `GET /api/session` / `POST /api/logout` | Session identity/logout |
 | `GET /api/cases` | Persisted case list |

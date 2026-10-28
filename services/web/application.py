@@ -169,6 +169,57 @@ class Application:
             "updated_at": case.updated_at,
         } for case in cases]
 
+    def public_dashboard(self):
+        """Return an unauthenticated, aggregate-only view: no identities, hashes or approval IDs."""
+        with self.store.transaction() as db:
+            cases = [self.store.get_case(db, row["case_id"]) for row in db.execute("SELECT case_id FROM cases ORDER BY case_id")]
+        current_sources = self.source_state(self.tools().get_source_versions())
+        summaries, notifications = [], []
+        for case in cases:
+            current = case.current
+            material = current.exposure.material_id
+            comparisons = current.candidate_comparisons
+            ranked = sorted(current.simulation.scenarios, key=lambda item: item.rank)
+            sources_current = self.source_state(current.source_versions) == current_sources
+            rejected = [item.candidate_id for item in comparisons if item.decision == CandidateDecision.REJECTED_HARD_MISMATCH]
+            gaps = [item.candidate_id for item in comparisons if item.decision != CandidateDecision.REJECTED_HARD_MISMATCH
+                    and any(row.status == "UNKNOWN" for row in item.rows)]
+            tasks_created = sum(1 for action in case.actions if action.action_type == ControlledAction.CREATE_QUALIFICATION_TASK.value)
+            summaries.append({
+                "case_id": case.case_id, "case_version": current.case_version, "material_id": material,
+                "status": current.status, "shortage_date": current.exposure.shortage_date,
+                "usable_stock": current.exposure.current_usable_stock,
+                "exposed_quantity": current.simulation.baseline_exposed_quantity,
+                "exposed_order_count": current.simulation.baseline_exposed_order_count,
+                "approved_covered_quantity": current.recovery_options.approved_covered_quantity,
+                "required_quantity": current.recovery_options.required_quantity,
+                "candidates": [{"candidate_id": item.candidate_id, "decision": item.decision} for item in comparisons],
+                "top_scenario": {"name": ranked[0].name, "state": ranked[0].state, "rank_reason": ranked[0].rank_reason} if ranked else None,
+                "sources_current": sources_current, "qualification_tasks_created": tasks_created,
+                "production_release_authorized": False, "updated_at": case.updated_at,
+            })
+            ref = {"case_id": case.case_id, "material_id": material}
+            if current.exposure.shortage_date:
+                notifications.append({**ref, "severity": "CRITICAL", "kind": "SHORTAGE",
+                    "title": f"Stok {material} habis {current.exposure.shortage_date}",
+                    "detail": f"{current.simulation.baseline_exposed_quantity} EA pada {current.simulation.baseline_exposed_order_count} production order terdampak."})
+            if not sources_current:
+                notifications.append({**ref, "severity": "CRITICAL", "kind": "SOURCES_CHANGED",
+                    "title": "Sumber data berubah", "detail": "Approval lama terblokir sampai kasus diinvestigasi ulang."})
+            if not current.recovery_options.approved_recovery_sufficient:
+                notifications.append({**ref, "severity": "WARNING", "kind": "COVERAGE_GAP",
+                    "title": "Approved recovery belum mencukupi",
+                    "detail": f"Coverage {current.recovery_options.approved_covered_quantity} / {current.recovery_options.required_quantity} EA; kandidat alternatif perlu review."})
+            for candidate_id in rejected:
+                notifications.append({**ref, "severity": "NEGATIVE", "kind": "CANDIDATE_REJECTED",
+                    "title": f"{candidate_id} ditolak", "detail": "Hard mismatch terhadap requirement teknis."})
+            for candidate_id in gaps:
+                notifications.append({**ref, "severity": "WARNING", "kind": "EVIDENCE_GAP",
+                    "title": f"Bukti {candidate_id} belum lengkap", "detail": "Requirement tanpa bukti tetap UNKNOWN sampai qualification."})
+            notifications.append({**ref, "severity": "INFORMATION", "kind": "RELEASE_BLOCKED",
+                "title": "Production release terblokir", "detail": "Hanya manusia yang dapat merilis material ke produksi."})
+        return {"cases": summaries, "notifications": notifications, "data_mode": "SYNTHETIC_FIXTURES", "generated_at": self.now()}
+
     def joule_case(self, case_id="CASE-001"):
         """Return a redacted, read-only case briefing for Joule."""
         with self.store.transaction() as db:
