@@ -38,7 +38,7 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 
 **Tampilkan:** Kartu metrik, lalu klik **ikon lonceng**.
 **Sorot:**
-- Kartu **"Stok habis: 4 Okt 2026"** dan **"Produksi terdampak: 700 EA, 7 production order"**
+- Kartu **"Stok habis: 2026-10-04"** dan **"Produksi terdampak: 700 EA, 7 production order"**
 - Badge angka di lonceng, lalu daftar notifikasi
 
 > "Ini dashboard publik. Semua pihak bisa melihatnya tanpa login. Stok bearing diprediksi habis
@@ -58,9 +58,9 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 
 ## Adegan 4 — Ringkasan kasus (1:00 – 1:35)
 
-**Tampilkan:** Overview (metrik + notifikasi + tabel kasus), lalu klik **CASE-001** (tab Summary & Options).
+**Tampilkan:** Overview sebentar (1–2 detik), lalu klik **CASE-001** (tab Summary & Options).
 **Sorot:**
-- 4 kartu: **Stok siap pakai 300**, **Shortage pertama 4 Okt 2026**, **Cakupan opsi resmi 0 / 700**
+- 4 kartu: **Stok usable 300**, **Shortage pertama 2026-10-04**, **Approved coverage 0 / 700**
 - Tabel **"Approved recovery diperiksa terlebih dahulu"**
 - Banner kuning **"Production release: Terblokir"**
 
@@ -88,8 +88,9 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 
 **Tampilkan:** Tab **Recovery Scenarios**.
 **Sorot:**
-- **Garis waktu "Barang datang ≠ siap dipakai"** di bagian atas: titik **Tiba 2 Okt** → **Stok habis 4 Okt** → **Siap pakai 7 Okt**, dengan celah merah dan tulisan **"Siap 3 hari 2 jam setelah stok habis"**
-- Kartu **Rank #1: Original-part expedite → Layak**, lalu baca singkat **"Alasan ranking: Melindungi semua order · siap sebelum stok habis"**
+- Kartu **Rank #1: Original-part expedite → Layak** dan baris **"0 EA · 0 orders"** di Sisa exposed
+- Scroll ke **Qualification timeline**: judul **"CAND-A · selesai terjadwal 7 Okt 2026"**, lalu baris pertama **"Candidate A delivery · 2 Okt 2026"**. Pakai zoom/sorot di video untuk membandingkan **2 Okt (tiba)** dengan **7 Okt (siap)**
+- Alasan ranking di kartu masih berbahasa Inggris; tidak perlu dibacakan
 
 > "Sekarang soal waktu. Kandidat A **tiba 2 Oktober**, sebelum stok habis. Tapi uji kualifikasinya,
 > yaitu tes suhu di lab, review Engineering, lalu review Quality, baru selesai **7 Oktober**. Itu
@@ -119,8 +120,8 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 **Aksi:** Di **Inject delayed delivery**, pilih `PO-ORIGINAL-001`, ubah tanggal, lalu klik
 **"Inject delay & hitung ulang"**.
 **Sorot:**
-- Banner biru **"Kasus diperbarui ke versi 2"**: Exposure 700 → 800 EA, 7 → 8 order, approval versi 1 tidak berlaku lagi
-- Pindah ke tab **Approval & Actions**: approval lama sekarang **Terblokir** dengan alasan **"Versi kasus berubah"**
+- Pesan **"Delay PO-ORIGINAL-001 diterapkan. Exposure kini 800 EA / 8 orders."** dan chip **Case version 2**
+- Pindah ke tab **Approval & Actions**: approval lama sekarang **Terblokir**. Di kolom Pemeriksaan, sorot kode **`STALE_CASE_VERSION`** (= versi kasus berubah); kode lain di baris itu tidak perlu dibahas
 
 > "Sekarang kita masuk sebagai Production Planner. Ada kabar: kiriman komponen asli **mundur lagi**.
 > Begitu tanggal diubah, sistem **langsung menghitung ulang**. Sekarang 800 unit dan 8 order terdampak,
@@ -131,6 +132,10 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 
 **Tampilkan:** Tab **Agent Workflow**.
 **Sorot:** Diagram node, lalu hasil **AI review yang tersimpan**.
+
+Label di layar masih bertuliskan **"OpenAI"**, padahal provider yang aktif adalah SAP AI Core
+(model gpt-5.4). Ucapkan "SAP AI Core" sesuai naskah; kalau juri bertanya, jelaskan labelnya belum
+diperbarui.
 
 > "Agent mengoordinasikan investigasi, dan model AI dari **SAP AI Core** menyusun penjelasan. Angka
 > dan aturan tetap dihitung kode; AI tidak bisa menyetujui apa pun."
@@ -186,7 +191,9 @@ Prompt Joule cadangan:
 ## Tips editing
 
 - Total narasi sekitar 630 kata ≈ 4:50 menit bicara, jadi ada ruang ±10 detik untuk jeda dan transisi.
-- Pakai **zoom-in atau lingkaran sorot** saat menunjuk angka penting: 4 Okt 2026, 700 EA, 30 mm,
-  garis waktu 2 → 4 → 7 Okt, banner versi 1 → 2.
+- Pakai **zoom-in atau lingkaran sorot** saat menunjuk angka penting: 2026-10-04, 700 EA, 30 mm,
+  tanggal 2 vs 7 Okt, versi 1 → 2.
 - Proses login dan loading di-*cut*.
+- Pesan hijau **"Login berhasil."** tetap menempel di atas halaman sampai ada pesan lain; potong atau
+  zoom bagian itu kalau mengganggu.
 - Kalau video harus lebih pendek (± 3 menit), buang adegan 3, 9, pertanyaan Joule kedua, dan sebagian adegan 4.
