@@ -1,0 +1,12 @@
+# Keep secrets, local databases and dev-only files out of `cf push` uploads.
+# Cloud Foundry reads this file, not .gitignore. Set credentials with `cf set-env`.
+.env
+.env.*
+data/local/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.impeccable/
+tests/
