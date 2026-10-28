@@ -47,6 +47,11 @@ class ApplicationError(Exception):
 
 
 LOGGER = logging.getLogger(__name__)
+ID_MONTHS = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+
+
+def id_date(value):
+    return f"{value.day} {ID_MONTHS[value.month - 1]} {value.year}"
 
 
 class Application:
@@ -194,14 +199,20 @@ class Application:
                 "approved_covered_quantity": current.recovery_options.approved_covered_quantity,
                 "required_quantity": current.recovery_options.required_quantity,
                 "candidates": [{"candidate_id": item.candidate_id, "decision": item.decision} for item in comparisons],
-                "top_scenario": {"name": ranked[0].name, "state": ranked[0].state, "rank_reason": ranked[0].rank_reason} if ranked else None,
+                "top_scenario": {
+                    "name": ranked[0].name, "state": ranked[0].state, "rank_reason": ranked[0].rank_reason,
+                    "remaining_exposed_order_count": ranked[0].remaining_exposed_order_count,
+                    "ready_at": ranked[0].ready_at, "ready_by_shortage": ranked[0].ready_by_shortage,
+                    "delay_after_shortage_hours": ranked[0].delay_after_shortage_hours,
+                    "incremental_cost_cents": ranked[0].incremental_cost_cents,
+                } if ranked else None,
                 "sources_current": sources_current, "qualification_tasks_created": tasks_created,
                 "production_release_authorized": False, "updated_at": case.updated_at,
             })
             ref = {"case_id": case.case_id, "material_id": material}
             if current.exposure.shortage_date:
                 notifications.append({**ref, "severity": "CRITICAL", "kind": "SHORTAGE",
-                    "title": f"Stok {material} habis {current.exposure.shortage_date}",
+                    "title": f"Stok {material} habis {id_date(current.exposure.shortage_date)}",
                     "detail": f"{current.simulation.baseline_exposed_quantity} EA pada {current.simulation.baseline_exposed_order_count} production order terdampak."})
             if not sources_current:
                 notifications.append({**ref, "severity": "CRITICAL", "kind": "SOURCES_CHANGED",
