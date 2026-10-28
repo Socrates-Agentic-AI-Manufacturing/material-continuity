@@ -46,18 +46,17 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > opsi resmi tidak mencukupi, satu kandidat ditolak, dan production release masih terblokir.
 > Semua angka ini dihitung oleh kode, bukan ditebak oleh AI."
 
-## Adegan 3 — Login & peran (0:50 – 1:05)
+## Adegan 3 — Login & peran (0:50 – 1:00)
 
 **Tampilkan:** Klik **Login**, scroll ke kartu peran.
 **Sorot:** Empat kartu peran, terutama tanda ✓ dan ✕.
 
-> "Ada tiga peran: Quality, Engineering, dan Production Planner. Masing-masing punya hak yang
-> berbeda, dan hak itu ditentukan oleh server, bukan oleh browser. Kita masuk sebagai Quality
+> "Ada tiga peran dengan hak berbeda, dan hak itu ditentukan server. Kita masuk sebagai Quality
 > Engineer."
 
 **Aksi:** Klik **"Masuk sebagai Quality Engineer"**, isi password, login.
 
-## Adegan 4 — Ringkasan kasus (1:05 – 1:40)
+## Adegan 4 — Ringkasan kasus (1:00 – 1:35)
 
 **Tampilkan:** Overview (metrik + notifikasi + tabel kasus), lalu klik **CASE-001** (tab Summary & Options).
 **Sorot:**
@@ -71,7 +70,7 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > tepat waktu. Baru setelah itu sistem mempertimbangkan kandidat baru. Dan perhatikan banner ini:
 > production release **selalu terblokir**, karena keputusan akhir tetap di tangan manusia."
 
-## Adegan 5 — Bukti kandidat (1:40 – 2:20)
+## Adegan 5 — Bukti kandidat (1:35 – 2:15)
 
 **Tampilkan:** Tab **Evidence Review**.
 **Sorot:**
@@ -85,7 +84,7 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > diketahui*. Dan setiap status bisa ditelusuri ke dokumen, revisi, dan halaman sumbernya. Ini
 > halaman 2 datasheet-nya."
 
-## Adegan 6 — Skenario & waktu kesiapan (2:20 – 2:55)
+## Adegan 6 — Skenario & waktu kesiapan (2:15 – 2:50)
 
 **Tampilkan:** Tab **Recovery Scenarios**.
 **Sorot:**
@@ -98,7 +97,7 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > dipakai*. Sistem lalu membandingkan tiga skenario dan memberi ranking. Di kondisi ini,
 > **mempercepat pengiriman komponen asli** menjadi pilihan terbaik karena melindungi semua order."
 
-## Adegan 7 — Approval & aksi (2:55 – 3:35)
+## Adegan 7 — Approval & aksi (2:50 – 3:30)
 
 **Tampilkan:** Tab **Approval & Actions**.
 **Aksi:**
@@ -114,7 +113,7 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > duplikat. Dan ingat, menyetujui *uji* bukan berarti bearing *boleh dipakai*. Production release
 > tetap terblokir."
 
-## Adegan 8 — Perubahan data & approval basi (3:35 – 4:10)
+## Adegan 8 — Perubahan data & approval basi (3:30 – 4:05)
 
 **Tampilkan:** *(cut)* Logout, login sebagai **Planner**, buka tab **Summary**.
 **Aksi:** Di **Inject delayed delivery**, pilih `PO-ORIGINAL-001`, ubah tanggal, lalu klik
@@ -128,30 +127,44 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 > dan kasus naik ke **versi 2**. Yang penting: approval tadi **otomatis tidak berlaku lagi**, karena
 > dibuat untuk versi lama. Tidak ada keputusan yang bisa dijalankan dengan data yang sudah basi."
 
-## Adegan 9 — Agent workflow & AI (4:10 – 4:25)
+## Adegan 9 — Agent workflow & AI (4:05 – 4:15)
 
 **Tampilkan:** Tab **Agent Workflow**.
 **Sorot:** Diagram node, lalu hasil **AI review yang tersimpan**.
 
-> "Di balik layar, agent mengoordinasikan investigasi langkah demi langkah. Model AI dari
-> **SAP AI Core** membaca dokumen dan menyusun penjelasan. Tapi semua angka dan aturan tetap dihitung
-> oleh kode, dan AI tidak punya akses untuk menyetujui apa pun."
+> "Agent mengoordinasikan investigasi, dan model AI dari **SAP AI Core** menyusun penjelasan. Angka
+> dan aturan tetap dihitung kode; AI tidak bisa menyetujui apa pun."
 
-## Adegan 10 — Joule (4:25 – 4:50)
+## Adegan 10 — Joule (4:15 – 4:52)
 
-**Tampilkan:** Tab Joule. Ketik **"Is there a material shortage right now?"**
-**Sorot:** Jawaban Joule (material, tanggal shortage, exposure, order terdampak).
+Adegan ini direkam **setelah Adegan 7 dan 8**, jadi Joule membaca data terbaru: exposure **800 EA /
+8 order** dan approval dari Quality.
 
-> "Kasus yang sama juga bisa ditanyakan lewat **SAP Joule**. Manajer cukup bertanya *ada shortage
-> atau tidak*, dan Joule menjawab langsung dari backend Material Continuity. Joule hanya membaca data.
-> Keputusan tetap lewat aplikasi, oleh orang dengan peran yang tepat."
+**Pertanyaan 1.** Tab Joule → New Conversation → ketik **"Is there a material shortage right now?"**
+**Sorot:** Jawaban Joule, terutama **exposure 800 EA dan 8 order terdampak**.
+
+> "Kasus yang sama juga bisa ditanyakan lewat **SAP Joule**. Perhatikan: Joule sudah menjawab
+> **800 unit dan 8 order**, angka terbaru setelah kiriman mundur tadi. Joule membaca langsung dari
+> backend Material Continuity, jadi web dan Joule selalu memakai data yang sama."
+
+**Pertanyaan 2.** Ketik **"What is the approval status of the current case?"**
+**Sorot:** Catatan approval dari **quality** untuk **CAND-A · REQ-LUBE-TEMP-001** muncul di jawaban.
+
+> "Approval yang dibuat Quality Engineer tadi juga tercatat di sini. Manajer bisa memantau tanpa
+> membuka aplikasi. Tapi Joule **hanya membaca**: menyetujui atau menjalankan tindakan tetap lewat
+> aplikasi, oleh orang dengan peran yang tepat."
+
+⚠️ **Tes pertanyaan 2 sebelum merekam.** Fungsi `approval_status` menampilkan daftar approval apa
+adanya dan **tidak menyebut apakah approval masih berlaku**. Jangan bilang "Joule tahu approval-nya
+basi". Kalau formatnya berantakan, ganti dengan **"Give me a briefing on the current material
+continuity case"** dan sesuaikan kalimatnya ke ringkasan kasus.
 
 Prompt Joule cadangan:
 - "Give me a briefing on the current material continuity case"
 - "What recovery options are available for the current case?"
-- "What is the approval status of the current case?"
+- "Show the material exposure and affected production orders"
 
-## Adegan 11 — Penutup (4:50 – 5:00)
+## Adegan 11 — Penutup (4:52 – 5:00)
 
 **Tampilkan:** Kembali ke dashboard publik.
 
@@ -172,8 +185,8 @@ Prompt Joule cadangan:
 
 ## Tips editing
 
-- Total narasi sekitar 620 kata ≈ 4:45 menit bicara, jadi ada ruang 15 detik untuk jeda dan transisi.
+- Total narasi sekitar 630 kata ≈ 4:50 menit bicara, jadi ada ruang ±10 detik untuk jeda dan transisi.
 - Pakai **zoom-in atau lingkaran sorot** saat menunjuk angka penting: 4 Okt 2026, 700 EA, 30 mm,
   garis waktu 2 → 4 → 7 Okt, banner versi 1 → 2.
 - Proses login dan loading di-*cut*.
-- Kalau video harus lebih pendek (± 3 menit), buang adegan 3, 9, dan sebagian adegan 4.
+- Kalau video harus lebih pendek (± 3 menit), buang adegan 3, 9, pertanyaan Joule kedua, dan sebagian adegan 4.
