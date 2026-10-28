@@ -317,8 +317,8 @@ async function showDocuments(revisionId) {
     ${item ? documentDetail(item, status, canEdit) : ''}
     ${canEdit ? `<details class="upload-disclosure"><summary><span><strong>Upload revisi PDF kandidat</strong><small>Simpan dan baca sumber baru secara lokal</small></span><span aria-hidden="true">＋</span></summary><form id="upload-document" class="panel upload-panel">
       <div><label for="doc-candidate">Kandidat</label><select id="doc-candidate" name="candidate_id">${['CAND-A','CAND-B','CAND-C'].map(id=>`<option>${id}</option>`).join('')}</select></div>
-      <div><label for="doc-id">Document ID stabil antar revisi</label><input id="doc-id" name="document_id" value="DS-CAND-A" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
-      <div><label for="doc-revision">Revisi sesuai isi PDF</label><input id="doc-revision" name="revision" placeholder="Contoh: 2 atau 3" pattern="[A-Za-z0-9._-]{1,60}" required maxlength="60"></div>
+      <div><label for="doc-id">Document ID stabil antar revisi</label><input id="doc-id" name="document_id" value="DS-CAND-A" pattern="(?:[A-Za-z0-9._]|-){1,60}" required maxlength="60"></div>
+      <div><label for="doc-revision">Revisi sesuai isi PDF</label><input id="doc-revision" name="revision" placeholder="Contoh: 2 atau 3" pattern="(?:[A-Za-z0-9._]|-){1,60}" required maxlength="60"></div>
       <div><label for="doc-file">PDF berbasis teks (maks. 2 MB / 20 halaman)</label><input id="doc-file" name="file" type="file" accept="application/pdf,.pdf" required></div>
       <p>Upload hanya menyimpan dan membaca teks secara lokal. Tidak mengirim ke OpenAI atau mengaktifkan revisi. Gunakan ID yang sama untuk revisi dokumen yang sama; isi revisi lama tidak bisa ditimpa.</p>
       <button type="submit">Upload dan baca PDF</button><p id="upload-progress" role="status" hidden>Menyimpan dan membaca halaman PDF…</p></form></details>` : '<p class="notice">Planner dapat membaca dokumen. Upload, review evidence, dan aktivasi memerlukan Engineering atau Quality.</p>'}
