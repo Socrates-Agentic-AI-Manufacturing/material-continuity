@@ -116,8 +116,9 @@ Login demo: `quality`, `engineering`, atau `planner` dengan password demo tim.
 
 ## Adegan 8 — Perubahan data & approval basi (3:30 – 4:05)
 
-**Tampilkan:** *(cut)* Logout, login sebagai **Planner**, buka tab **Summary**.
-**Aksi:** Di **Inject delayed delivery**, pilih `PO-ORIGINAL-001`, ubah tanggal, lalu klik
+**Tampilkan:** *(cut)* Logout, login sebagai **Planner**, klik **CASE-001** di Overview. Kasus terbuka di
+tab pertama, **Summary & Options**.
+**Aksi:** Di kotak biru muda **Inject delayed delivery** (paling atas tab itu), pilih `PO-ORIGINAL-001`, ubah tanggal, lalu klik
 **"Inject delay & hitung ulang"**.
 **Sorot:**
 - Pesan **"Delay PO-ORIGINAL-001 diterapkan. Exposure kini 800 EA / 8 orders."** dan chip **Case version 2**
