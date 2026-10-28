@@ -461,35 +461,3 @@ footer { padding: 20px max(28px,calc((100vw - 1440px)/2)); color: var(--muted); 
 @media (max-width:420px) {
   .shell-title { max-width:130px; overflow:hidden; text-overflow:ellipsis; }
 }
-
-/* Version-change banner after inject delay / re-investigation. */
-.change-banner { display:flex; flex-wrap:wrap; gap:6px 12px; margin:0 0 14px; padding:12px 16px; border:1px solid #bde0ff; border-left:4px solid var(--accent); border-radius:var(--radius-control); background:var(--accent-soft); font-size:13px; }
-.change-banner strong { color:var(--information); }
-.public-panel .table-scroll { box-shadow:none; border-radius:0; }
-.public-panel .table-scroll caption { padding-left:0; }
-
-/* Arrival vs readiness timeline (positions applied from JS because CSP blocks inline styles). */
-.readiness { margin:0 0 30px; padding:20px 22px 26px; border-radius:var(--radius-card); background:#fff; box-shadow:var(--shadow-soft); }
-.readiness-row + .readiness-row { margin-top:28px; }
-.readiness-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 20px; }
-.readiness-head h3 { margin:4px 0 0; font-size:16px; }
-.readiness-head p { margin:0; font-size:14px; }
-.readiness-late { color:var(--danger); }
-.readiness-ok { color:var(--success); }
-.readiness-track { position:relative; height:10px; margin:46px 6px 50px; border-radius:5px; background:#e5e8eb; }
-.readiness-wait, .readiness-gap { position:absolute; top:0; height:100%; border-radius:5px; }
-.readiness-wait { background:#91c8f6; }
-.readiness-gap.late { background:repeating-linear-gradient(45deg,#d20a0a 0 6px,#f53232 6px 12px); }
-.readiness-gap.ok { background:#30914c; }
-.readiness-mark { position:absolute; top:-3px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--muted); white-space:nowrap; }
-.readiness-mark i { width:16px; height:16px; margin-bottom:2px; border:3px solid #fff; border-radius:50%; box-shadow:0 0 0 1px #a9b4be; background:#788fa6; }
-.readiness-mark b { color:var(--ink); font-size:12px; }
-.readiness-mark.arrival i { background:var(--accent); }
-.readiness-mark.ready i { background:var(--success); }
-.readiness-mark.shortage { top:auto; bottom:-3px; }
-.readiness-mark.shortage i { margin:2px 0 0; background:var(--danger); }
-.readiness-mark.shortage b { color:var(--danger); }
-@media (max-width:700px) {
-  .readiness { padding:16px 14px 22px; }
-  .readiness-mark { font-size:11px; }
-}

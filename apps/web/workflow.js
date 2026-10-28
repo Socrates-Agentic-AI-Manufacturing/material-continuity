@@ -1,13 +1,10 @@
 /* Inspectable workflow, not a workflow editor. All business facts come from the API.
-   Local case map and recorded model calls are deliberately different views. */
+   Local case map and recorded OpenAI calls are deliberately different views. */
 (() => {
   'use strict';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const statusText = value => ({RECORDED:'Terekam',NOT_RUN:'Belum terekam',READ:'Dibaca',ADVISORY:'Advisory',VERSIONED:'Terversi',HUMAN_GATE:'Persetujuan manusia',RECEIPT_RECORDED:'Receipt tersimpan',NOT_EXECUTED:'Belum dijalankan',MATCH:'Sesuai',MISMATCH:'Tidak sesuai',UNKNOWN:'Belum diketahui',BLOCKED:'Terblokir',BLOCKED_PENDING_EVIDENCE_OR_RELEASE:'Menunggu bukti / release',REJECTED_HARD_MISMATCH:'Ditolak · spesifikasi tidak sesuai'}[value] || String(value ?? '').replaceAll('_',' ').toLowerCase());
   const json = value => esc(JSON.stringify(value, null, 2));
-  // Display name of the configured model provider; set on each render from /api/llm/status.
-  let ai = 'AI';
-  const providerName = status => ({sap_ai_core:'SAP AI Core', openai:'OpenAI'})[status?.provider] || 'AI';
   const nodeWidth = 224, nodeHeight = 132;
   const descriptions = {
     getExposure: ['Hitung dampak produksi', 'Code', 'Stok, shortage, dan order terdampak dihitung oleh backend, bukan perkiraan AI.', 'exposure'],
@@ -15,7 +12,7 @@
     getCandidateEvidence: ['Review bukti kandidat', 'Evidence', 'Baca comparison yang sudah dihitung backend, termasuk gap dan sumber/halaman. Bukan pembacaan PDF langsung.', 'evidence'],
     getQualificationDependencies: ['Jadwalkan kualifikasi', 'Code', 'Backend menghitung dependency dan kalender pengujian. Jadwal bukan hasil test yang sudah lulus.', 'qualification'],
     simulateRecovery: ['Bandingkan recovery', 'Code', 'Bandingkan substitusi, expedite, dan resequencing berdasarkan hasil deterministik. Feasible bukan authorized.', 'simulation'],
-    finishReview: ['Susun advisory AI', 'Model AI', 'Ringkasan model membantu reviewer memahami kasus; tidak mengubah bukti, approval, atau izin produksi.', 'advisory'],
+    finishReview: ['Susun advisory AI', 'OpenAI', 'Ringkasan model membantu reviewer memahami kasus; tidak mengubah bukti, approval, atau izin produksi.', 'advisory'],
   };
   function toolOutput(tool, target, facts, review) {
     if (tool === 'getExposure') return facts.exposure;
@@ -58,7 +55,7 @@
         status:'RECORDED', explanation:'Pemicu kasus ini berasal dari fixture enterprise sintetis; belum ada event SAP/AWS langsung.', context, output:facts.trigger},
       core('getExposure'), core('findRecoveryOptions'),
       {id:'evidence', title:'Evidence Specialist', owner:'Lokal / evidence', kind:'evidence', subtitle:facts.candidate_comparisons.length + ' kandidat direview',
-        status:ran('EvidenceSpecialist') ? 'RECORDED' : 'NOT_RUN', explanation:'Workflow lokal memetakan prepared evidence atau hasil PDF aktif yang telah direview ke requirement. Ekstraksi AI terpisah di Documents & Data. Hard mismatch ditolak; bukti hilang tetap UNKNOWN.', context,
+        status:ran('EvidenceSpecialist') ? 'RECORDED' : 'NOT_RUN', explanation:'Workflow lokal memetakan prepared evidence atau hasil PDF aktif yang telah direview ke requirement. Ekstraksi OpenAI terpisah di Documents & Data. Hard mismatch ditolak; bukti hilang tetap UNKNOWN.', context,
         output:{candidate_comparisons:facts.candidate_comparisons, trace:trace.filter(step=>step.tool==='EvidenceSpecialist')}},
       core('getQualificationDependencies', {output:facts.qualification_graphs}), core('simulateRecovery'),
       {id:'case', title:'Simpan versi kasus', owner:'Code', kind:'case', subtitle:'Versi ' + facts.case_version,
@@ -95,17 +92,16 @@
   function render(view, status) {
     const saved = view.latest_ai_review;
     const enabled = status.configured && view.sources_current;
-    ai = providerName(status);
     return `<section class="workflow" aria-labelledby="workflow-title">
       <div class="workflow-intro"><div><h2 id="workflow-title">Agent Workflow</h2><p>Ikuti bagaimana bukti menjadi keputusan. Klik node untuk membuka konteks dan hasil backend.</p></div>
-        <span class="flow-provider">${status.configured ? esc(ai) + ' tersedia · ' + esc(status.model) : 'Provider AI belum aktif'}</span></div>
-      <form id="ai-review-form" class="ai-review-form"><div><label class="cost-consent"><input type="checkbox" id="ai-cost-consent" required ${!enabled ? 'disabled' : ''}> Saya memahami review ini mengirim data kasus sintetis ke ${esc(ai)} dan memakai kuota API.</label>
+        <span class="flow-provider">${status.configured ? 'OpenAI tersedia · ' + esc(status.model) : 'OpenAI belum aktif'}</span></div>
+      <form id="ai-review-form" class="ai-review-form"><div><label class="cost-consent"><input type="checkbox" id="ai-cost-consent" required ${!enabled ? 'disabled' : ''}> Saya memahami review ini mengirim data kasus sintetis ke OpenAI dan memakai kredit API.</label>
         <small>${!view.sources_current ? 'Sumber berubah: jalankan investigasi ulang dahulu.' : !status.configured ? 'Aktifkan provider, key dan model di backend lalu restart server.' : 'Maksimal 12 panggilan / 90 detik. Tidak ada panggilan otomatis saat membuka halaman.'}</small></div>
         <button type="submit" id="ai-review" ${!enabled ? 'disabled data-disabled="true"' : ''}>Review dengan AI</button></form>
       <p id="ai-review-progress" role="status" aria-live="polite" hidden></p>
       <div id="ai-review-error" class="notice danger" role="alert" hidden></div>
       ${saved && !saved.is_current ? '<p class="notice danger">Review AI tersimpan berasal dari sumber atau versi lama. Ini hanya arsip, bukan rekomendasi untuk keadaan saat ini.</p>' : ''}
-      <div class="flow-toolbar"><div class="flow-mode"><label for="flow-source">Sumber alur</label><select id="flow-source"><option value="local">Alur kasus lokal</option><option value="ai" ${!saved ? 'disabled' : ''}>Jejak review AI${saved ? ' · v' + saved.case_version : ' · belum dijalankan'}</option></select></div>
+      <div class="flow-toolbar"><div class="flow-mode"><label for="flow-source">Sumber alur</label><select id="flow-source"><option value="local">Alur kasus lokal</option><option value="ai" ${!saved ? 'disabled' : ''}>Jejak review OpenAI${saved ? ' · v' + saved.case_version : ' · belum dijalankan'}</option></select></div>
         <div class="actions"><button type="button" class="secondary" id="flow-view">Tampilan daftar</button><button type="button" class="secondary" id="flow-fit">Pas ke layar</button>
         <button type="button" class="secondary" id="flow-minus" aria-label="Perkecil canvas">−</button><output id="flow-zoom" aria-label="Zoom canvas">100%</output><button type="button" class="secondary" id="flow-plus" aria-label="Perbesar canvas">+</button></div></div>
       <p class="flow-caption" id="flow-caption"></p>
@@ -114,13 +110,13 @@
         <div class="flow-replay"><button type="button" class="secondary" id="flow-prev" aria-label="Langkah sebelumnya">Sebelumnya</button><button type="button" id="flow-play">Putar replay</button><button type="button" class="secondary" id="flow-next" aria-label="Langkah berikutnya">Berikutnya</button><span id="flow-step" role="status" aria-live="polite"></span></div>
         <p id="flow-help">Geser area kosong untuk pan. Fokus canvas lalu gunakan tombol panah; Tab untuk memilih node. Replay hanya menelusuri catatan, tidak menjalankan ulang tools atau memakai kredit.</p></div>
         <aside class="flow-inspector" id="flow-inspector" aria-label="Detail node terpilih"></aside></div>
-      <div class="flow-legend"><span>Code: hitung & validasi</span><span>${esc(ai)}: advisory baca-saja</span><span>Manusia: otorisasi</span><span>QMS: task simulasi</span></div>
-      <div id="ai-review-result">${saved ? reviewHTML(saved) : '<p>Belum ada review AI tersimpan. Alur lokal tetap bisa dieksplorasi tanpa biaya API.</p>'}</div>
+      <div class="flow-legend"><span>Code: hitung & validasi</span><span>OpenAI: advisory baca-saja</span><span>Manusia: otorisasi</span><span>QMS: task simulasi</span></div>
+      <div id="ai-review-result">${saved ? reviewHTML(saved) : '<p>Belum ada review OpenAI tersimpan. Alur lokal tetap bisa dieksplorasi tanpa biaya API.</p>'}</div>
     </section>`;
   }
   function reviewHTML(saved) {
     const names = {REVIEW_EVIDENCE_GAPS:'Review gap bukti', REVIEW_QUALIFICATION_PLAN:'Review rencana kualifikasi', REVIEW_RECOVERY_SCENARIOS:'Bandingkan skenario recovery', REQUEST_HUMAN_REVIEW:'Minta review manusia'};
-    return `<section class="ai-advisory"><h3>Advisory ${esc(ai)}${!saved.is_current ? ' · arsip lama' : ''}</h3><p class="advisory-text">${esc(saved.review.summary)}</p>
+    return `<section class="ai-advisory"><h3>Advisory OpenAI${!saved.is_current ? ' · arsip lama' : ''}</h3><p class="advisory-text">${esc(saved.review.summary)}</p>
       <p><strong>Bukan approval, bukti baru, atau izin produksi.</strong> Angka dan status resmi tetap ada di Evidence Review dan Recovery Scenarios.</p>
       <ul>${saved.review.next_steps.map(step=>`<li>${esc(names[step] || step)}</li>`).join('')}</ul>
       <small>${esc(saved.model)} · Versi ${saved.case_version} · ${saved.tool_trace.length} tool calls · ${saved.usage.input_tokens.toLocaleString('id-ID')} input / ${saved.usage.output_tokens.toLocaleString('id-ID')} output tokens · ${esc(saved.created_at)}</small></section>`;
@@ -197,7 +193,7 @@
       stop(); nodes = build(view, mode); selected = 0;
       el('flow-source').value = mode;
       el('flow-caption').textContent = mode === 'ai'
-        ? 'Jejak review AI yang benar-benar selesai. Urutan mengikuti tool calls model; hasil memakai snapshot saat review, bukan bukti PDF baru.'
+        ? 'Jejak OpenAI yang benar-benar selesai. Urutan mengikuti tool calls model; hasil memakai snapshot saat review, bukan bukti PDF baru.'
         : 'Peta tahap kasus yang dikelompokkan, bukan urutan tool call individual. Evidence mengikuti sumber aktif; approval dan QMS adalah catatan tahap terpisah dengan human gate.';
       const height = 202 * Math.ceil(nodes.length/3) + 12;
       const edges = nodes.slice(1).map((node,i) => {
