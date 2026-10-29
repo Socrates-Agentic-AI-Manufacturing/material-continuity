@@ -80,6 +80,7 @@ async function perform(action) {
 
 const ICONS = {
   bell:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10a6 6 0 1 1 12 0v3.4l1.6 2.6H4.4L6 13.4Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>',
+  joule:'<svg class="ui5-icon-root" part="root" dir="ltr" viewBox="0 0 16 16" role="presentation" focusable="false" preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><g role="presentation"><path d="M12 0a.75.75 0 0 1 .62.326l3.25 4.752a.75.75 0 0 1-.018.871l-7.25 9.753a.756.756 0 0 1-1.204 0L.148 5.95a.75.75 0 0 1-.017-.871L3.437.254A.75.75 0 0 1 4 0h8ZM1.67 5.484 8 13.998l6.328-8.514L11.605 1.5h-7.21L1.671 5.484Zm7.5-2.25a.35.35 0 0 1 .66 0c.37 1.084.85 1.575 1.93 1.937.32.11.32.562 0 .662-1.08.371-1.57.853-1.93 1.936a.35.35 0 0 1-.66 0c-.37-1.083-.85-1.575-1.93-1.936-.32-.11-.32-.562 0-.662 1.08-.372 1.57-.853 1.93-1.937Z"></path></g></svg>',
   menu:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   help:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.6"/><path d="M12 16.8v.2"/></svg>',
   person:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5a7 7 0 0 1 14 0"/></svg>',
@@ -153,7 +154,7 @@ function showLogin() {
 
 function navItems() {
   return session
-    ? [['overview','Overview'],['cases','Recovery Cases'],['documents','Documents & Data'],['joule','Joule Assistant'],['public','Dashboard Publik'],['guide','Panduan']]
+    ? [['overview','Overview'],['cases','Recovery Cases'],['documents','Documents & Data'],['public','Dashboard Publik'],['guide','Panduan']]
     : [['public','Dashboard Publik'],['guide','Panduan Pengguna'],['login','Login']];
 }
 
@@ -171,6 +172,7 @@ function shell(section) {
     : `<a class="shell-login" href="#login">Login</a>`;
   document.querySelector('#shell-actions').innerHTML = `
     <button class="shell-icon" type="button" id="shell-notifications" data-popover="notification-popover" aria-expanded="false" aria-controls="notification-popover" aria-label="Notifikasi">${ICONS.bell}<span class="shell-count" id="notification-count" hidden></span></button>
+    <a class="shell-icon" href="${JOULE_URL}" target="_blank" rel="noopener noreferrer" aria-label="Joule Assistant">${ICONS.joule}</a>
     <div class="popover notification-popover" id="notification-popover" role="dialog" aria-label="Notifikasi" hidden><div class="popover-title"><strong>Notifikasi</strong><a href="#public">Lihat dashboard</a></div><div id="notification-list"><p class="popover-empty">Memuat notifikasi…</p></div></div>
     <button class="shell-icon" type="button" data-popover="menu-popover" aria-expanded="false" aria-controls="menu-popover" aria-label="Navigasi">${ICONS.menu}</button>
     <div class="popover menu-popover" id="menu-popover" role="dialog" aria-label="Navigasi" hidden><span class="popover-group">Navigasi</span>${items.map(([key,label])=>`<a class="popover-item" href="#${key}" ${key===section ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</div>
@@ -267,14 +269,13 @@ function showGuide() {
 async function route() {
   if (workflowCleanup) { workflowCleanup(); workflowCleanup = null; }
   closePopovers();
-  const parts = (location.hash || (session ? '#overview' : '#login')).slice(1).split('/');
+  const parts = (location.hash || '#public').slice(1).split('/');
   if (parts[0] === 'public') { shell('public'); return showPublicDashboard(); }
   if (parts[0] === 'guide') { shell('guide'); return showGuide(); }
   if (!session) { showLogin(); return; }
   if (parts[0] === 'login') { location.hash = '#overview'; return; }
-  const section = ['overview','cases','documents','joule'].includes(parts[0]) ? parts[0] : 'overview';
+  const section = ['overview','cases','documents'].includes(parts[0]) ? parts[0] : 'overview';
   shell(section);
-  if (section === 'joule') return showJoule();
   if (section === 'documents') return showDocuments(parts[1]);
   if (section === 'cases' && parts[1]) return showCase(parts[1], parts[2] || 'summary');
   const data = await api('/api/cases');
@@ -295,15 +296,6 @@ async function route() {
       <td><a href="#cases/${encodeURIComponent(item.case_id)}/summary">${escape(item.case_id)}</a><small>Versi ${item.case_version}</small></td>
       <td>${escape(item.material_id)}</td><td>${escape(date(item.shortage_date))}</td>
       <td>${item.exposed_quantity} EA / ${item.exposed_order_count} orders</td><td>${badge(item.status)}</td><td>${time(item.updated_at)}</td></tr>`)) : '<p>Belum ada kasus. Periksa inisialisasi fixture di server.</p>'}`;
-}
-
-function showJoule() {
-  content.innerHTML = `<h1>Joule Assistant</h1>
-    <p>Joule memakai backend Material Continuity yang sama untuk membaca exposure dan status kasus.</p>
-    <div class="panel"><h2>Joule tersedia di Web Client SAP</h2>
-      <p>Web Client Joule tidak dapat di-embed dari aplikasi ini karena Content Security Policy SAP hanya mengizinkan framing dari domainnya sendiri.</p>
-      <p class="notice">Gunakan tombol berikut untuk membuka sesi Joule di tab baru. Koneksi ke backend dan capability tetap sama.</p>
-      <p><a class="button-link" href="${JOULE_URL}" target="_blank" rel="noopener noreferrer">Buka Joule Web Client</a></p></div>`;
 }
 
 async function showDocuments(revisionId) {

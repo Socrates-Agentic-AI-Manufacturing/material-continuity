@@ -27,6 +27,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-height:100vh; font-family: var(--font); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--background); }
+.shell-logo { width:32px; height:32px; flex:0 0 32px; object-fit:contain; }
 .brand-mark { width:32px; height:32px; flex:0 0 32px; display:grid; grid-template-columns:repeat(3,1fr); align-items:end; gap:3px; padding:7px; border-radius:var(--radius-control); background:var(--accent); }
 .brand-mark i { display:block; background:#d1e8ff; border-radius:2px 2px 0 0; }
 .brand-mark i:nth-child(1) { height:45%; }.brand-mark i:nth-child(2) { height:80%; }.brand-mark i:nth-child(3) { height:60%; }
@@ -350,6 +351,7 @@ footer { padding: 20px max(28px,calc((100vw - 1440px)/2)); color: var(--muted); 
 .shell-icon:hover, .shell-icon[aria-expanded="true"] { color:var(--ink); background:var(--shell-hover); }
 .shell-icon:active { background:#dee2e5; }
 .shell-icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.shell-icon svg.ui5-icon-root { width:16px; height:16px; fill:currentColor; stroke:none; }
 .shell-count { position:absolute; top:2px; right:1px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; color:#fff; background:#d20a0a; font-size:11px; font-weight:700; line-height:17px; text-align:center; }
 .shell-avatar { display:inline-grid; place-items:center; width:32px; min-height:32px; height:32px; margin-left:6px; padding:0; border:1px solid #bde0ff; border-radius:50%; color:var(--information); background:var(--accent-soft); font-size:13px; font-weight:700; }
 .shell-avatar:hover { color:var(--information); background:#d1e8ff; border-color:var(--accent); }

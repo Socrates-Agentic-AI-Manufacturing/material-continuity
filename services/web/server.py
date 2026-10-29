@@ -182,9 +182,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 if name not in known:
                     raise ApplicationError(404, "DOCUMENT_NOT_FOUND", "Dokumen tidak ditemukan.")
                 self.file_response(app.document_root / name, "application/pdf")
-            elif path in ("/", "/index.html", "/app.js", "/workflow.js", "/style.css"):
+            elif path in ("/", "/index.html", "/app.js", "/workflow.js", "/style.css", "/logo.png"):
                 name = "index.html" if path == "/" else path[1:]
-                mime = {"index.html": "text/html; charset=utf-8", "app.js": "text/javascript; charset=utf-8", "workflow.js": "text/javascript; charset=utf-8", "style.css": "text/css; charset=utf-8"}[name]
+                mime = {"index.html": "text/html; charset=utf-8", "app.js": "text/javascript; charset=utf-8", "workflow.js": "text/javascript; charset=utf-8", "style.css": "text/css; charset=utf-8", "logo.png": "image/png"}[name]
                 self.file_response(self.server.web_root / name, mime)
             else:
                 raise ApplicationError(404, "NOT_FOUND", "Route tidak ditemukan.")
